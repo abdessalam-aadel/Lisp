@@ -214,7 +214,7 @@
 			     (if (and (= (vla-get-objectname ent) "AcDbText")    
 		       		 (vl-string-search "-" (vla-get-TextString ent)))
 			          (progn
-				    ;(setq modifiedText (vl-string-subst "NewText" "OldText" (vla-get-TextString ent)))
+				    ;Regex simple pattern ([0-9]+-){2}[A-Z] to select 12-13-12-A
 				    (setq modifiedText (_RegExReplace "NewText" "[0-9]+-[0-9]+-[0-9]+-[A-Z]" (vla-get-TextString ent)) )
 				    (vla-put-TextString ent modifiedText)
 				    (princ "\nSearch and replace completed.")
