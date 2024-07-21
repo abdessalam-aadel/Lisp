@@ -2,7 +2,7 @@
 ;;; PZE Lisp : Purge All & Zoom Extend for Multiple DWG Files
 ;;;
 ;;; Copyright © 2024
-;;; https://github.com/abdessalam-aadel/PZE
+;;; https://github.com/abdessalam-aadel/Lisp
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 (vl-load-com) ; Load COM (Component Object Model) objects
