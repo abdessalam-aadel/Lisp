@@ -1,7 +1,7 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; PZE Lisp : Purge All & Zoom Extend for Multiple DWG Files
 ;;;
-;;; Copyright © 2024
+;;; Copyright Â© 2024
 ;;; https://github.com/abdessalam-aadel/PZE
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -34,7 +34,7 @@
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-;;; Start function to Search All dwg files in path
+;;; Start function to Search All dwg files in subfolder
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun vl-findfile (Location / DirList Path AllPath)
   (MakeDirList Location)
@@ -48,7 +48,7 @@
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-;;; Start function to Make directory list
+;;; Start function to Make directory list for subfolder
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun MakeDirList (Arg / TmpList)
   (setq TmpList (cddr (vl-directory-files Arg nil -1)))
@@ -292,5 +292,5 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (princ)
 
-(princ "\nPZE Lisp :")
-(princ "\nPurge All & Zoom Extend for Multiple DWG Files")
+(princ "\nPZE Lisp Loaded Correctly.")
+(princ "\nLet's Start to use PZE Command :)")
