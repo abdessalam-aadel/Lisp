@@ -3,7 +3,7 @@
 ;;; Polyligne by Layer (RECT), and Delete the Mtext contain Echelle : 1/1000
 ;;; and Mtext contain the Mappe ex : 33-30-15-A in Multiple DWG Files 
 ;;;
-;;; Copyright © 2024
+;;; Copyright Â© 2024
 ;;; https://github.com/abdessalam-aadel/PZE
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -319,7 +319,7 @@
   (princ (Strcat "\n DONE. Processed " (Itoa i) " drawings. !!"))
   (setvar "CMDECHO" 1);Turns on echoing
   (princ)
-) ;end pze
+) ;end MMO
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (princ)
 
