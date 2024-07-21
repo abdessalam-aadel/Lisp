@@ -4,7 +4,7 @@
 ;;; and Mtext contain the Mappe ex : 33-30-15-A in Multiple DWG Files 
 ;;;
 ;;; Copyright © 2024
-;;; https://github.com/abdessalam-aadel/PZE
+;;; https://github.com/abdessalam-aadel/Lisp
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 (vl-load-com) ; Load COM (Component Object Model) objects
