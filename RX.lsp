@@ -1,7 +1,9 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; RX Lisp : small routine to Replace specific content in AcDbText
-;;; 
 ;;; using REGEX _RegExReplace function
+;;;
+;;; Copyright © 2024
+;;; https://github.com/abdessalam-aadel/PZE
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 (vl-load-com) ; Load COM (Component Object Model) objects
