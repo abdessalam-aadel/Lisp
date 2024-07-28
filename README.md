@@ -8,3 +8,6 @@ and Mtext contain the Mappe for example : 33-30-15-A in Multiple DWG Files.
 
 RX Lisp : small routine to Replace specific content in AcDbText
 using REGEX VBScript.RegExp
+
+CCD Lisp : is a small routine for copying content from dwg to others
+I try to improve them ...
