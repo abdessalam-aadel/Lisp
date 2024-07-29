@@ -1,7 +1,7 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; CCD : is a small routin for copying content from dwg to others
 ;;;
-;;; Copyright © 2024
+;;; Copyright Â© 2024
 ;;; https://github.com/abdessalam-aadel/Lisp
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -186,14 +186,13 @@
        (setq rotation (vlax-get ent 'Rotation))
        ;; Get block name
        (setq blockName (vlax-get ent 'Name))
-;;;    	;; Get scale factors from the BlockReference object
-;;;        (setq scaleFactors (vla-get-ScaleFactor ent))
-;;;        (setq xScale (car scaleFactors))
-;;;        (setq yScale (cadr scaleFactors))
-;;;        (setq zScale (caddr scaleFactors))
+       ;; Extract the scale factors from the VLA-OBJECT
+      (setq scale-x (vla-get-XScaleFactor ent)) ; X scale factor
+      (setq scale-y (vla-get-YScaleFactor ent)) ; Y scale factor
+      (setq scale-z (vla-get-ZScaleFactor ent)) ; Z scale factor
       
        ;; Add BlockReference to target drawing
-       (setq newBlockRef (vla-insertblock ms2 insertionPoint blockName 0.2 0.2 0.2 rotation)) ;; 0.2 for scale factor, adjust as needed
+       (setq newBlockRef (vla-insertblock ms2 insertionPoint blockName scale-x scale-y scale-z rotation))
        (vla-put-layer newBlockRef (vla-get-Layer ent))
 	)
 
@@ -202,9 +201,6 @@
        (setq newPt (vla-addPoint ms2 aPoint))
        (vla-put-layer newPt (vla-get-Layer ent))
 	)
-
-
-      
     )
   )
 
