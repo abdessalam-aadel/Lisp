@@ -11,3 +11,6 @@ using REGEX VBScript.RegExp
 
 CCD Lisp : is a small routine for copying content from dwg to others
 I try to improve them ...
+
+DH Lisp (Del_Layer_Hatch_Finale.lsp) : is a samll Routine to Delete specific Layer and creat a Hatch in specific position in Multiple DWG Files 
+          and Purge All + Zomme Extents
