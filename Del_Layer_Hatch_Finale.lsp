@@ -1,6 +1,6 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-;;; DH Lisp : is a samll Routine to Delete specific Layer and creat a Hatch in Multiple DWG Files 
-;;;           and Purge All + Zomme Extents
+;;; DH Lisp : is a samll Routine to Delete specific Layer and creat a Hatch in specific position,
+;;;           and Purge All + Zomme Extents in Multiple DWG Files 
 ;;;
 ;;; Copyright © 2025
 ;;; https://github.com/abdessalam-aadel/Lisp
@@ -185,41 +185,39 @@
 			   ;Start Modify the Mappe
 			   (Prompt "\n Start Modify the Mappe ...")
 			   (vla-startundomark file)
-			   (setq ms (vla-get-modelspace file))
-			   
-			   ;1 Vlax-For Delete All element in Layer ERRORS
-			   (vlax-for ent ms
-			     (if (= (vla-get-Layer ent) "ERRORS")
-		       		  (progn
-		       		   (vla-delete ent)
-						(vla-Regen file acActiveViewport)
-					   )
-		          );end if
-			    );end 1 vlax-for
-			   (princ)
-			   
-			   ;2 Vlax-For Explode Specific BlockReference
-			   (vlax-for ent ms
-			     (if (and (= (vla-get-ObjectName ent) "AcDbBlockReference")
-						  (= (vla-get-Name ent) "1")
-					)
-		       		   (vla-Explode ent)
-		          );end if
-			    );end 2 vlax-for
-			   (princ)
-			   
-			   (setq textPos '(0.0 0.0 0.0))
-			   ;3 Vlax-For Get the Text Position
-			   (vlax-for ent ms
-				 (if (and (= (vla-get-ObjectName ent) "AcDbMText")
-						  (= (vla-get-Layer ent) "BORNES")
-						  (vl-string-search (strcase filename) (strcase (vla-get-TextString ent)))
-					)
-					(progn 
-					  (setq textPos (vlax-get ent 'InsertionPoint))	
+			   (setq ms (vla-get-modelspace file)
+					 textPos '(0.0 0.0 0.0)
+			    )
+				
+				(vlax-for ent ms
+					(cond
+					  ;; 1. Delete entities on layer "ERRORS"
+					  ((= (strcase (vla-get-Layer ent)) "ERRORS")
+					   (vla-delete ent)
 					  )
-			      );end if
-				);end 3 vlax-for
+
+					  ;; 2. Explode block references named "1"
+					  ((and (= (vla-get-ObjectName ent) "AcDbBlockReference")
+							(= (vla-get-Name ent) "1")
+					   )
+					   (vla-Explode ent)
+					  )
+					)
+				)
+				(vla-Regen file acActiveViewport)
+				(princ)
+				
+				(vlax-for ent ms
+					(cond
+					  ;; Find MText on "BORNES" layer containing the filename
+					  ((and (= (vla-get-ObjectName ent) "AcDbMText")
+							(= (strcase (vla-get-Layer ent)) "BORNES")
+							(vl-string-search (strcase filename) (strcase (vla-get-TextString ent)))
+					   )
+					   (setq textPos (vlax-get ent 'InsertionPoint))
+					  )
+					)
+				)
 				(princ)
 				
 				;; Create a temporary polyline using textPos (the center of polyline)
