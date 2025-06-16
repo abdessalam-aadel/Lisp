@@ -2,7 +2,7 @@
 ;;; DH Lisp : is a samll Routine to Delete specific Layer and creat a Hatch in specific position,
 ;;;           and Purge All + Zomme Extents in Multiple DWG Files 
 ;;;
-;;; Copyright © 2025
+;;; Copyright ? 2025
 ;;; https://github.com/abdessalam-aadel/Lisp
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -22,7 +22,8 @@
               (+ x halfx) (+ y halfy)
               (- x halfx) (+ y halfy)
               (- x halfx) (- y halfy) ; back to start to close
-            ))
+            )
+	)
 
   ;; Create the safearray
   (setq coords (vlax-make-safearray vlax-vbDouble (cons 0 (- (length pts) 1))))
@@ -247,7 +248,7 @@
 				(vla-delete poly) ; delete temporary polyline
 				(princ "\n Hatch applied to enclosing polyline.")
 				;; ---------------------------------------------
-				;; Start Creating a hatch ----------------------
+				;; End Creating a hatch ----------------------
 				;; ---------------------------------------------
 				
 			   (vla-endundomark file)
