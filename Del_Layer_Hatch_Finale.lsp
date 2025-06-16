@@ -2,7 +2,7 @@
 ;;; DH Lisp : is a samll Routine to Delete specific Layer and creat a Hatch in specific position,
 ;;;           and Purge All + Zomme Extents in Multiple DWG Files 
 ;;;
-;;; Copyright ? 2025
+;;; Copyright © 2025
 ;;; https://github.com/abdessalam-aadel/Lisp
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
