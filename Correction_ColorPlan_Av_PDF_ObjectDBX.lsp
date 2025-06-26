@@ -1,11 +1,15 @@
-;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-;;; Correction_ColorPlan_Av_PDF_ObjectDBX Lisp : is a samll Routine to set All Layer color (white)
-;;; and set the color of all objects to By layer, and Bring to front a polylin in layer "contour_",
-;;; and Purge in Multiple DWG Files using ObjectDBX
+;;;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; CorrigerPlan2 - Clean & Process DWG files via ObjectDBX
+;;; - Set all layers to white (ACI color 7)
+;;; - Set all entities' color to ByLayer
+;;; - Move closed polylines from "public.parcelle" to "contour_"
+;;; - Bring "contour_" polylines to front
+;;; - Purge unused elements (blocks, layers, linetypes)
+;;; - Process multiple DWG files in batch, write log to CSV
 ;;;
-;;; Copyright © 2025
-;;; https://github.com/abdessalam-aadel/Lisp
-;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Author: Abdessalam Aadel © 2025
+;;; GitHub: https://github.com/abdessalam-aadel/Lisp
+;;;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; ObjectDBX Document object, which allows manipulation of DWG files without opening a GUI drawing window.
@@ -112,7 +116,7 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start function to Purge using Object DBX
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(defun Purge-DBX (dbxDoc / try-delete defcoll item)
+(defun Purge-DBX (dbxDoc / try-delete defcoll)
 
   ;; Safe delete wrapper
   (defun try-delete (obj)
@@ -169,8 +173,8 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start Main Command CorrigerPlan2
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(defun c:CorrigerPlan2 (/   ctf	  	   DwgPath
-			    File      Files	     FilesList	i	 SubDir	 	     	
+(defun c:CorrigerPlan2 (/   ctf	  	  DwgPath    csvPathFile csvfile
+							File      Files	     FilesList	 outputPath  i		 	     	
 			   )
 	
   ;Scripting.FileSystemObject : COM object provided by Microsoft that allows access to the file system operations
