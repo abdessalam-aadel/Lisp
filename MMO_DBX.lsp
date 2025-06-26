@@ -7,7 +7,9 @@
 ;;; https://github.com/abdessalam-aadel/Lisp
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-;; ObjectDBX Document object, which allows manipulation of DWG files without opening a GUI drawing window.
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; ObjectDBX Document object, which allows manipulation of DWG files without opening a GUI drawing window.
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun _ObjectDBXDocument ( acapp / acVer )
 	(vla-GetInterfaceObject acapp
 	  (if (< (setq acVer (atoi (getvar "ACADVER"))) 16)
@@ -15,7 +17,26 @@
 	  )
 	)
 )
-
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Start function Open csv Log file
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun _OpenFile ( fn / shell result )
+	(setq result
+	  (vl-catch-all-apply
+		(function
+		  (lambda nil
+			(setq shell (vla-getInterfaceObject (vlax-get-acad-object) "Shell.Application"))
+			(vlax-invoke shell 'open fn)
+		  )
+		)
+	  )
+	)
+	(if shell (vlax-release-object shell))
+	(not (vl-catch-all-error-p result))
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Start function Make Polyline using center point
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun make-square-polyline (center ms / halfx halfy x y coords pline pts)
   ;; Calculate half-size
   (setq halfx (/ 0.8636 2.0))
@@ -79,12 +100,12 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start function to open folder dialogue to select the path
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(defun GetFolder (/ Dir Item Path)
+(defun GetFolder (msg / Dir Item Path)
   (cond
     ((setq Dir (vlax-invoke (vlax-get-or-create-object "Shell.Application")
 			    'browseforfolder
 			    0
-			    "Select the Path with DWG files:"
+			    msg
 			    1
 			    ""
 	       )
@@ -121,10 +142,19 @@
   
   ;Start Condition
   (cond
-    ((setq DwgPath (GetFolder))
-     
+    ((setq DwgPath (GetFolder "Selectionnez le dossier qui contient les fichiers autocad :"))
+	 (setq outputPath (GetFolder "Selectionnez le dossier de sortie :"))
+	 ;Set the path of log.csv file
+	 (setq csvPathFile (strcat outputPath "\log.csv"))
+	 ;Open the csv file for writing
+	 (setq csvfile (open csvPathFile "w"))
+	 ;the Header of csv :
+	 (write-line "Filename,Probleme" csvfile)
+	 
+	 ;Get All DWG files
      (setq Files (mapcar '(lambda (x) (strcat dwgpath x)) (vl-directory-files DwgPath "*.dwg" 1)))
 	 
+	 ;Start Process ...
      (Prompt "\n Starting process ...\n")
      (cond
 		(Files
@@ -147,132 +177,141 @@
 				1
 			)
 			(cond
-			  ((setq acadApp (vlax-get-acad-object) ; Get AutoCAD Application object
-					dbxDoc (_ObjectDBXDocument acadApp)
+			  ( (setq acadApp (vlax-get-acad-object) ; Get AutoCAD Application object
+					dbxDoc (_ObjectDBXDocument acadApp) ; Returns a reference to a background DWG document that can be opened and manipulated without showing it in AutoCAD.
+					filename (vl-filename-base &) ; Extract filename without path and extension
 				)
-			  (Vlax-invoke-method dbxDoc 'Open &)
-			   (setq filename (vl-filename-base &)) ; Extract filename without path and extension
-			   (Prompt (Strcat "\n Open " & ". Please wait (" (Itoa (1+ i)) "/" (Itoa ctf) ")..."))
+				(setq open-result 
+				  (vl-catch-all-apply 'vlax-invoke-method (list dbxDoc 'Open &))
+			    )
+				(if (vl-catch-all-error-p open-result)
+				  (progn
+					(write-line (strcat filename ",Drawing file was created by an incompatible version.") csvfile)
+					(vlax-release-object dbxDoc)
+				  )
+				  (progn
+					(Prompt (Strcat "\n Open " & ". Please wait (" (Itoa (1+ i)) "/" (Itoa ctf) ")..."))
 			   
-				;Start Modify the DWG
-				(Prompt "\n Start Modify the DWG ...")
-				(setq ms (vla-get-modelspace dbxDoc)
-					 textPos '(0.0 0.0 0.0)
-				)
-				
-				(vlax-for ent ms
-					(cond
-					  ;; 1. Delete entities on layer "titres"
-					  ((or  (= (vla-get-Layer ent) "titres")
-							(= (vla-get-ObjectName ent) "AcDbRasterImage")
-							(= (vla-get-ObjectName ent) "AcDbZombieEntity")
-							(and (= (vla-get-ObjectName ent) "AcDbMText")
-								(vl-string-search "ZONE" (vla-get-TextString ent))
-								(vl-string-search "EXCLUS" (vla-get-TextString ent))
-							)
-							(and (= (vla-get-ObjectName ent) "AcDbMText")
-								(or (= (vla-get-color ent) 4)
-									(= (vla-get-color ent) 2)
+					;Start Modify the DWG
+					(Prompt "\n Start Modify the DWG ...")
+					(setq ms (vla-get-modelspace dbxDoc)
+						 textPos '(0.0 0.0 0.0)
+					)
+					
+					(vlax-for ent ms
+						(cond
+						  ;; 1. Delete entities on layer "titres"
+						  ((or  (= (vla-get-Layer ent) "titres")
+								(= (vla-get-ObjectName ent) "AcDbRasterImage")
+								(= (vla-get-ObjectName ent) "AcDbZombieEntity")
+								(and (= (vla-get-ObjectName ent) "AcDbMText")
+									(vl-string-search "ZONE" (vla-get-TextString ent))
+									(vl-string-search "EXCLUS" (vla-get-TextString ent))
+								)
+								(and (= (vla-get-ObjectName ent) "AcDbMText")
+									(or (= (vla-get-color ent) 4)
+										(= (vla-get-color ent) 2)
+									)
 								)
 							)
+								(vla-delete ent)
+						  )
+						  
+						  ;; 2. Explode block references named "1"
+						  ((and (= (vla-get-ObjectName ent) "AcDbBlockReference")
+								(or (= (vla-get-Name ent) "1")
+									(= (vla-get-Name ent) "2")
+									(= (vla-get-Name ent) "3")
+									(= (vla-get-Name ent) "4")
+									(= (vla-get-Name ent) "5")
+								)
+						   )
+						   (vla-Explode ent)
+						  )
 						)
-							(vla-delete ent)
-					  )
-					  
-					  ;; 2. Explode block references named "1"
-					  ((and (= (vla-get-ObjectName ent) "AcDbBlockReference")
-							(or (= (vla-get-Name ent) "1")
-								(= (vla-get-Name ent) "2")
-								(= (vla-get-Name ent) "3")
-								(= (vla-get-Name ent) "4")
-								(= (vla-get-Name ent) "5")
-							)
-					   )
-					   (vla-Explode ent)
-					  )
 					)
-				)
-				(princ)
-				
-				(vlax-for ent ms
-					(cond
-					  ;; Find MText on "BORNES" layer containing the filename
-					  ((and (= (vla-get-ObjectName ent) "AcDbMText")
-							(= (strcase (vla-get-Layer ent)) "BORNES")
-							(vl-string-search filename (vla-get-TextString ent))
-					   )
-					   (setq textPos (vlax-get ent 'InsertionPoint))
-					  )
+					(princ)
+					
+					(vlax-for ent ms
+						(cond
+						  ;; Find MText on "BORNES" layer containing the filename
+						  ((and (= (vla-get-ObjectName ent) "AcDbMText")
+								(= (strcase (vla-get-Layer ent)) "BORNES")
+								(vl-string-search filename (vla-get-TextString ent))
+						   )
+						   (setq textPos (vlax-get ent 'InsertionPoint))
+						  )
+						)
 					)
+					(princ)
+					
+					;; Create a temporary polyline using textPos (the center of polyline)
+					(setq poly (make-square-polyline (list (car textPos) (cadr textPos)) ms))
+					;; ---------------------------------------------
+					;; Start Creating a hatch ----------------------
+					;; ---------------------------------------------
+					(setq hatch (vla-AddHatch
+								 ms
+								 acHatchPatternTypePreDefined
+								 "ANSI31"
+								 :vlax-true))
+					;; Set hatch style (angle, scale)
+					(vla-put-Color hatch 5)
+					(vla-put-PatternAngle hatch 1.55) ; degrees
+					(vla-put-PatternScale hatch 0.05)  ; smaller = tighter pattern
+
+					;; Create a safearray for the loop
+					(setq loopArray (vlax-make-safearray vlax-vbObject '(0 . 0)))
+					(vlax-safearray-put-element loopArray 0 poly)
+
+					;; Append the outer loop
+					(vla-AppendOuterLoop hatch loopArray)
+
+					;; Evaluate the hatch
+					(vla-Evaluate hatch)
+					(vla-delete poly) ; delete temporary polyline
+					(princ "\n Hatch applied to enclosing polyline.")
+					;; ---------------------------------------------
+					;; End Creating a hatch ----------------------
+					;; ---------------------------------------------
+					
+				   ;End Modify the Mappe
+				   
+				   ;Start Purge-All
+				   (Prompt (Strcat "\n Purge " & ". Please wait..."))
+				   ;; Run manual purge
+					(Purge-DBX dbxDoc)
+				   
+				   ;Save & Close & Release Object
+				   (Prompt (Strcat "\n Save and Close " & "\n"))
+				   (vla-saveas dbxDoc (strcat outputPath filename ".dwg"))
+				   (vlax-release-object dbxDoc)
+				   (setq i (1+ i));iterate the Counter
+				  )
 				)
-				(princ)
-				
-				;; Create a temporary polyline using textPos (the center of polyline)
-				(setq poly (make-square-polyline (list (car textPos) (cadr textPos)) ms))
-				;; ---------------------------------------------
-				;; Start Creating a hatch ----------------------
-				;; ---------------------------------------------
-				(setq hatch (vla-AddHatch
-							 ms
-							 acHatchPatternTypePreDefined
-							 "ANSI31"
-							 :vlax-true))
-				;; Set hatch style (angle, scale)
-				(vla-put-Color hatch 5)
-				(vla-put-PatternAngle hatch 1.55) ; degrees
-				(vla-put-PatternScale hatch 0.05)  ; smaller = tighter pattern
-
-				;; Create a safearray for the loop
-				(setq loopArray (vlax-make-safearray vlax-vbObject '(0 . 0)))
-				(vlax-safearray-put-element loopArray 0 poly)
-
-				;; Append the outer loop
-				(vla-AppendOuterLoop hatch loopArray)
-
-				;; Evaluate the hatch
-				(vla-Evaluate hatch)
-				(vla-delete poly) ; delete temporary polyline
-				(princ "\n Hatch applied to enclosing polyline.")
-				;; ---------------------------------------------
-				;; End Creating a hatch ----------------------
-				;; ---------------------------------------------
-				
-			   ;End Modify the Mappe
-			   
-			   ;Start Purge-All
-			   (Prompt (Strcat "\n Purge " & ". Please wait..."))
-			   ;; Run manual purge
-				(Purge-DBX dbxDoc)
-			   
-			   ;Save & Close & Release Object
-			   (Prompt (Strcat "\n Save and Close " & "\n"))
-			   ;; if folder output not exist creat them
-			   (if (not (vl-file-directory-p "C:\\output\\"))
-				  (vl-mkdir "C:\\output\\")
-				)
-			   (vla-saveas dbxDoc (strcat "C:\\output\\" filename ".dwg"));(vla-saveas dbxDoc &) work fine with no .bak file
-			   (vlax-release-object dbxDoc)
-			   (setq i (1+ i));iterate the Counter
 			  )
-			  (T
-			   (prompt (strcat "\nCannot open "
-					   &
-					   "\nDrawing file was created by an incompatible version. "
-				   )
-			   )
-			  )
+			  (T (write-line (strcat filename ",Drawing file was created by an incompatible version.") csvfile))
 			);end cond
 			   )
-			   (T (prompt (strcat & " is read-only. Purge canceled. ")))
+			   (T (write-line (strcat filename ",is read-only.") csvfile))
 			 );end cond
 			)
-			(T (prompt (strcat & " is open now. Purge canceled. ")))
+			(T (write-line (strcat filename ",is open now.") csvfile))
 		  );end cond
 
 		);end foreach
+		(Gc) ;Garbage Collection : explicitly triggers garbage collection
+		(Gc) ; identify and reclaim memory occupied by objects that are no longer reachable or in use by the program
        )
        (T (Prompt "\nNothing files found to purge. "))
      );end cond
+	 ;Colse the csv file
+	 (close csvfile)
+	 ; Open the CSV file (Log.csv)
+	 (if (null (_OpenFile csvPathFile))
+		(princ "\n--> Error Opening Report.")
+		(princ "\n--> CSV Report Opened.")
+	  )
     )
     (T (Prompt "\nNothing selected. "))
   );end condition
@@ -282,6 +321,7 @@
   (princ)
 ) ;end MMO_DBX
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(vl-load-com)
 (princ)
 
 (princ "\n Lisp Loaded Correctly.")
