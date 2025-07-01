@@ -1,6 +1,7 @@
 ;;;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-;;; CorrigerPlan2 - Clean & Process DWG files via ObjectDBX
+;;; CorrigerPlan - Clean & Process DWG files via ObjectDBX
 ;;; - Set all layers to white (ACI color 7)
+;;; - Delete all polylignes in layer "contour_" with Area = 0.0
 ;;; - Set all entities' color to ByLayer
 ;;; - Move closed polylines from "public.parcelle" to "contour_"
 ;;; - Bring "contour_" polylines to front
@@ -173,7 +174,7 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start Main Command CorrigerPlan2
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(defun c:CorrigerPlan2 (/   ctf	  	  DwgPath    csvPathFile csvfile
+(defun c:CorrigerPlan (/   ctf	  	  DwgPath    csvPathFile csvfile
 							File      Files	     FilesList	 outputPath  i		 	     	
 			   )
 	
@@ -196,7 +197,7 @@
 	 ;Open the csv file for writing
 	 (setq csvfile (open csvPathFile "w"))
 	 ;the Header of csv :
-	 (write-line "Filename,Probleme" csvfile)
+	 (write-line "Filename,Probleme,Count" csvfile)
 	 
 	 ;Get All DWG files
      (setq Files (mapcar '(lambda (x) (strcat dwgpath x)) (vl-directory-files DwgPath "*.dwg" 1)))
@@ -205,11 +206,31 @@
      (Prompt "\n Starting process ...\n")
      (cond
 		(Files
-		(setq ctf (Length files))
+		(setq ctf (length files))
 		
 		(vlax-for & (vla-get-documents (vlax-get-acad-object))
 		  (setq FilesList (cons (strcase (vla-get-fullname &)) FilesList))
 		)
+		
+		(setq 	acadApp (vlax-get-acad-object) ; Get AutoCAD Application object
+				dbxDoc (_ObjectDBXDocument acadApp) ; Returns a reference to a background DWG document that can be opened and manipulated without showing it in AutoCAD.
+		)
+		
+		; (setq Express
+			; (and (vl-position "acetutil.arx" (arx))
+			  ; (not
+				; (vl-catch-all-error-p
+				  ; (vl-catch-all-apply
+					; (function (lambda nil (acet-sys-shift-down)))
+				  ; )
+				; )
+			  ; )
+			; )
+		; )
+		;Start progress bar
+		; (if Express
+            ; (setq ProgBar (acet-ui-progress "Start Modify the DWG..." ctf))
+		; )
 	
 		;Start Foreach Loop
 		(foreach & Files
@@ -224,10 +245,9 @@
 				1
 			)
 			(cond
-			  ( (setq acadApp (vlax-get-acad-object) ; Get AutoCAD Application object
-					dbxDoc (_ObjectDBXDocument acadApp) ; Returns a reference to a background DWG document that can be opened and manipulated without showing it in AutoCAD.
-					filename (vl-filename-base &) ; Extract filename without path and extension
-				)
+			  ( (setq filename (vl-filename-base &)) ; Extract filename without path and extension
+				;(if Express (acet-ui-progress -1))
+				
 				(setq open-result 
 				  (vl-catch-all-apply 'vlax-invoke-method (list dbxDoc 'Open &))
 			    )
@@ -237,11 +257,11 @@
 					(vlax-release-object dbxDoc)
 				  )
 				  (progn
-					(Prompt (Strcat "\n Open " & ". Please wait (" (Itoa (1+ i)) "/" (Itoa ctf) ")..."))
+					;(Prompt (Strcat "\n Open " & ". Please wait (" (Itoa (1+ i)) "/" (Itoa ctf) ")..."))
 					;Start Modify the DWG
-					(Prompt "\n Start Modify the DWG ...")
 					(setq ms (vla-get-modelspace dbxDoc)
 						 layers (vla-get-Layers dbxDoc) ; Get the layers collection
+						 countContour 0 ; nbr of Polyline in layer "contour_"
 					)
 					
 					;; Loop through all layers
@@ -254,13 +274,27 @@
 					
 					;; Loop through all objects
 					(vlax-for ent ms
+						(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
+								 (= (vla-get-Layer ent) "contour_")
+								 (= (vla-get-Area ent) 0.0)
+							) 
+								(vla-Delete ent)
+						)
+					)
+					(princ)
+					
+					;; Loop through all objects
+					(vlax-for ent ms
 						(dsx-put-color ent acByLayer)
 						(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
 								 (= (vla-get-Layer ent) "public.parcelle")
 								 (= (vla-get-Closed ent) :vlax-true)
 							)
-							(vla-put-Layer ent "contour_")
+							(progn
+								(vla-put-Layer ent "contour_")
+							)
 						)
+						
 						(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
 								 (= (vla-get-Layer ent) "contour_")
 							)
@@ -272,18 +306,30 @@
 						)
 					)
 					(princ)
-				   ;End Modify the Mappe
+				    ;End Modify the Mappe
 				   
-				   ;Start Purge-All
-				   (Prompt (Strcat "\n Purge " & ". Please wait..."))
-				   ;; Run manual purge
-				   (Purge-DBX dbxDoc)
+				    ;(Prompt (Strcat "\n Purge " & ". Please wait..."))
+				    ;; Run manual purge
+				    (Purge-DBX dbxDoc)
 				   
-				   ;Save & Close & Release Object
-				   (Prompt (Strcat "\n Save and Close " & "\n"))
-				   (vla-saveas dbxDoc (strcat outputPath filename ".dwg"))
-				   (vlax-release-object dbxDoc)
-				   (setq i (1+ i));iterate the Counter
+				    ;; Loop through all objects
+					(vlax-for ent ms
+						(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
+								 (= (vla-get-Layer ent) "contour_")
+							) 
+								(setq countContour (1+ countContour));iterate the Counter of polyline
+						)
+					)
+					(princ)
+				   
+					;Save & Close & Release Object
+					;(Prompt (Strcat "\n Save and Close " & "\n"))
+					(vla-saveas dbxDoc (strcat outputPath filename ".dwg"))
+					(setq i (1+ i));iterate the Counter
+					;(setq countContour (- countContour 1))
+					(if (> countContour 1)
+						(write-line (strcat filename ",Nombre de polylignes dans le layer contour_ est :," (itoa countContour)) csvfile)
+					)
 				  )
 				)
 			   )
@@ -296,8 +342,12 @@
 			(T (write-line (strcat filename ",is open now.") csvfile))
 		  );end cond
 		);end foreach
+		;End progress bar
+		;(if Express (setq ProgBar (acet-ui-progress)))
+		(vlax-release-object dbxDoc)
 		(Gc) ;Garbage Collection : explicitly triggers garbage collection
 		(Gc) ; identify and reclaim memory occupied by objects that are no longer reachable or in use by the program
+		(Gc)
        )
        (T (write-line "\nNothing files found to purge." csvfile))
      );end cond
@@ -315,10 +365,9 @@
   
   (princ (Strcat "\n DONE. Processed " (Itoa i) " drawings. !!"))
   (princ)
-) ;end CorrigerPlan2
+) ;end CorrigerPlan
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(vl-load-com)
 (princ)
 
 (princ "\n Lisp Loaded Correctly.")
-(princ "\n Let's Start to use CorrigerPlan2 Command :)")
+(princ "\n Let's Start to use CorrigerPlan Command :)")
