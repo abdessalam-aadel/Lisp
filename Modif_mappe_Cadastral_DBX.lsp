@@ -94,8 +94,8 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start Main Command ModifMappe_DBX 
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(defun c:ModifMappe_DBX (/   ctf	  	   DwgPath
-			    File      Files	     FilesList	i	 SubDir	 	     	
+(defun c:ModifMappe_DBX (/   ctf	 DwgPath     outputPath   i
+							File     Files	     FilesList	  csvPathFile	 	 csvfile     	
 			   )
 	
   ;Scripting.FileSystemObject : COM object provided by Microsoft that allows access to the file system operations
@@ -131,6 +131,10 @@
 		(vlax-for & (vla-get-documents (vlax-get-acad-object))
 		  (setq FilesList (cons (strcase (vla-get-fullname &)) FilesList))
 		)
+		
+		(setq 	acadApp (vlax-get-acad-object) ; Get AutoCAD Application object
+				dbxDoc (_ObjectDBXDocument acadApp) ; Returns a reference to a background DWG document that can be opened and manipulated without showing it in AutoCAD.
+		)		
 	
 		;Start Foreach Loop
 		(foreach & Files
@@ -145,10 +149,7 @@
 				1
 			)
 			(cond
-			  ( (setq acadApp (vlax-get-acad-object) ; Get AutoCAD Application object
-					dbxDoc (_ObjectDBXDocument acadApp) ; Returns a reference to a background DWG document that can be opened and manipulated without showing it in AutoCAD.
-					filename (vl-filename-base &) ; Extract filename without path and extension
-				)
+			  ( (setq filename (vl-filename-base &)) ; Extract filename without path and extension
 				(setq open-result 
 				  (vl-catch-all-apply 'vlax-invoke-method (list dbxDoc 'Open &))
 			    )
@@ -158,10 +159,9 @@
 					(vlax-release-object dbxDoc)
 				  )
 				  (progn
-					(Prompt (Strcat "\n Open " & ". Please wait (" (Itoa (1+ i)) "/" (Itoa ctf) ")..."))
+					;(Prompt (Strcat "\n Open " & ". Please wait (" (Itoa (1+ i)) "/" (Itoa ctf) ")..."))
 			   
 					;Start Modify the DWG
-					(Prompt "\n Start Modify the DWG ...")
 					(setq ms (vla-get-modelspace dbxDoc)
 						 layers (vla-get-Layers dbxDoc) ; Get the layers collection
 					)
@@ -196,15 +196,13 @@
 					
 				   ;End Modify the Mappe
 				   
-				   ;Start Purge-All
-				   (Prompt (Strcat "\n Purge " & ". Please wait..."))
+				   ;(Prompt (Strcat "\n Purge " & ". Please wait..."))
 				   ;; Run manual purge
 				   (Purge-DBX dbxDoc)
 				   
 				   ;Save & Close & Release Object
-				   (Prompt (Strcat "\n Save and Close " & "\n"))
+				   ;(Prompt (Strcat "\n Save and Close " & "\n"))
 				   (vla-saveas dbxDoc (strcat outputPath filename ".dwg"))
-				   (vlax-release-object dbxDoc)
 				   (setq i (1+ i));iterate the Counter
 				  )
 				)
@@ -219,8 +217,10 @@
 		  );end cond
 
 		);end foreach
+		(vlax-release-object dbxDoc)
 		(Gc) ;Garbage Collection : explicitly triggers garbage collection
 		(Gc) ; identify and reclaim memory occupied by objects that are no longer reachable or in use by the program
+		(Gc)
        )
        (T (write-line "\nNothing files found to purge." csvfile))
      );end cond
@@ -240,7 +240,6 @@
   (princ)
 ) ;end ModifMappe_DBX
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(vl-load-com)
 (princ)
 
 (princ "\n Lisp Loaded Correctly.")
