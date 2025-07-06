@@ -221,7 +221,7 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start Main Command CorrigerPlan2
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(defun c:CorrigerPlan (/   ctf	  	  DwgPath    csvPathFile csvfile
+(defun c:CorrigerPlan (/   ctf	  	  DwgPath    csvPathFile csvfile     pcName
 							File      Files	     FilesList	 outputPath  i		 	     	
 			   )
 	
