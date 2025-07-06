@@ -34,14 +34,41 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Detect Document is open by DWL
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(defun is-dwg-open-by-dwl (dwgpath / dwl dwl2)
+(defun is-dwg-open-by-dwl (dwgpath pcName / dwl dwl2)
   (setq dwl  (strcat (vl-filename-base dwgpath) ".dwl"))
   (setq dwl2 (strcat (vl-filename-base dwgpath) ".dwl2"))
 
   (setq dwl  (strcat (vl-filename-directory dwgpath) "\\" dwl))
   (setq dwl2 (strcat (vl-filename-directory dwgpath) "\\" dwl2))
-
-  (or (findfile dwl) (findfile dwl2))
+  
+  (if (findfile dwl)
+	(progn
+      (setq file (open dwl "r"))
+      (setq content "")
+      (while (setq line (read-line file))
+        (setq content (strcat content line "\n"))
+      )
+      (close file)
+      (cond
+		((null content)
+			nil
+		)
+		((wcmatch (strcase content) (strcase (strcat "*" pcName "*")))
+			T
+		)
+		(T
+			nil
+		)
+	  )
+    )
+	
+	(progn 
+		(if (findfile dwl2)
+			T
+			nil
+		)
+	)
+  )
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start function Open csv Log file
@@ -207,7 +234,7 @@
   
   ;Initialize the counter i = 0
   (setq i 0)
-  
+  (setq pcName (getenv "COMPUTERNAME"))
   ;Start Condition
   (cond
     ((setq DwgPath (GetFolder "Selectionnez le dossier qui contient les fichiers autocad :"))
@@ -238,7 +265,7 @@
 			(if (is-empty-dwg &)
 				(write-line (strcat filename ",Document invalid.") csvfile)
 				(progn
-					(if (not (is-dwg-open-by-dwl &))
+					(if (not (is-dwg-open-by-dwl & pcName))
 					(progn
 						(if (/= (logand (vlax-get-property (vlax-invoke-method FileSystemObject 'getfile &) 'Attributes ) 1) 1)
 						(progn
