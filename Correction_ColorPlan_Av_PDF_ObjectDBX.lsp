@@ -23,6 +23,27 @@
 	)
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Detect and Skip 0-Byte DWG Files
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun is-empty-dwg (filename)
+  (or
+    (not (findfile filename)) ;File doesn't exist
+    (= (vl-file-size filename) 0) ;File is 0 bytes
+  )
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Detect Document is open by DWL
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun is-dwg-open-by-dwl (dwgpath / dwl dwl2)
+  (setq dwl  (strcat (vl-filename-base dwgpath) ".dwl"))
+  (setq dwl2 (strcat (vl-filename-base dwgpath) ".dwl2"))
+
+  (setq dwl  (strcat (vl-filename-directory dwgpath) "\\" dwl))
+  (setq dwl2 (strcat (vl-filename-directory dwgpath) "\\" dwl2))
+
+  (or (findfile dwl) (findfile dwl2))
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start function Open csv Log file
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun _OpenFile ( fn / shell result )
@@ -45,9 +66,9 @@
 (defun dsx-put-color (obj num / av)
   (setq av (substr (getvar "acadver") 1 2))
   (if (>= av "16")
-    ;; if AutoCAD 2004...
+    ;if AutoCAD 2004...
     (dsx-put-color2004 obj num) 
-    ;; if any other version...
+    ;if any other version...
     (dsx-put-property obj "Color" num)
   )
 )
@@ -61,36 +82,36 @@
         ) 
       )
     )
-    (progn ;; if getting the TrueColor object of 'obj' did not return a vla-error
+    (progn ;if getting the TrueColor object of 'obj' did not return a vla-error
       (cond
         ( (= 'INT (type num)) ;; if an ACI index integer is passed 
-          ;; if obj is a table record (i.e. Layer)...
+          ;if obj is a table record (i.e. Layer)...
           (if (vl-string-search "Table" (vla-get-ObjectName obj))
             (progn
               (vla-put-ColorMethod oColor acColorMethodByACI) 
               (vla-put-ColorIndex oColor num)
             )
             (if (= num acBylayer) ;; if obj is an entity
-              (progn ;; if num is to be byLayer 
+              (progn ;if num is to be byLayer 
                 (vla-put-ColorMethod oColor acColorMethodByLayer)
                 (vla-put-ColorIndex oColor acByLayer)
               )
-              (progn ;; if num is to be an override 
+              (progn ;if num is to be an override 
                 (vla-put-ColorMethod oColor acColorMethodByACI)
                 (vla-put-ColorIndex oColor num)
               )
             ) 
           )
         )
-        ( (and (listp num) (= (length num) 3)) ;; an RGB list is passed
+        ( (and (listp num) (= (length num) 3)) ;an RGB list is passed
           (vla-put-ColorMethod oColor acColorMethodByRGB) ;; set the method 
           ;; set the RGB values
           (vlax-invoke-method oColor 'SetRGB (nth 0 num) (nth 1 num) (nth 2 num)) 
         )
       )
-      ;; stuff color object back into parent object 
+      ;stuff color object back into parent object 
       (vla-put-TrueColor obj oColor)
-      ;; clean up the memory stack of unused objects
+      ;clean up the memory stack of unused objects
       (vlax-release-object oColor)
     ) 
     (vl-catch-all-error-message oColor)
@@ -113,18 +134,17 @@
     )
   ) 
 )
-
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start function to Purge using Object DBX
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun Purge-DBX (dbxDoc / try-delete defcoll)
 
-  ;; Safe delete wrapper
+  ;Safe delete wrapper
   (defun try-delete (obj)
     (vl-catch-all-apply 'vla-delete (list obj))
   )
 
-  ;; Helper to purge a definition collection
+  ;Helper to purge a definition collection
   (defun defcoll (collection skiplist)
     (vlax-for item collection
       (if (not (member (strcase (vla-get-name item)) skiplist))
@@ -133,16 +153,16 @@
     )
   )
 
-  ;; Purge Blocks
+  ;Purge Blocks
   (defcoll (vla-get-blocks dbxDoc) '("MODEL_SPACE" "PAPER_SPACE"))
 
-  ;; Purge Layers (except 0 and Defpoints)
+  ;Purge Layers (except 0 and Defpoints)
   (defcoll (vla-get-layers dbxDoc) '("0" "DEFPOINTS"))
 
-  ;; Purge Linetypes
+  ;Purge Linetypes
   (defcoll (vla-get-linetypes dbxDoc) '("BYLAYER" "BYBLOCK" "CONTINUOUS"))
 
-  ;; You can add more here: dimension styles, text styles, etc.
+  ;You can add more here: dimension styles, text styles, etc.
 )
 
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -208,148 +228,119 @@
 		(Files
 		(setq ctf (length files))
 		
-		(vlax-for & (vla-get-documents (vlax-get-acad-object))
-		  (setq FilesList (cons (strcase (vla-get-fullname &)) FilesList))
-		)
-		
 		(setq 	acadApp (vlax-get-acad-object) ; Get AutoCAD Application object
 				dbxDoc (_ObjectDBXDocument acadApp) ; Returns a reference to a background DWG document that can be opened and manipulated without showing it in AutoCAD.
 		)
 		
-		; (setq Express
-			; (and (vl-position "acetutil.arx" (arx))
-			  ; (not
-				; (vl-catch-all-error-p
-				  ; (vl-catch-all-apply
-					; (function (lambda nil (acet-sys-shift-down)))
-				  ; )
-				; )
-			  ; )
-			; )
-		; )
-		;Start progress bar
-		; (if Express
-            ; (setq ProgBar (acet-ui-progress "Start Modify the DWG..." ctf))
-		; )
-	
 		;Start Foreach Loop
 		(foreach & Files
-		  (cond
-			((not (member & FilesList))
-			 (cond
-			   ((/= (logand (vlax-get-property (vlax-invoke-method FileSystemObject 'getfile &)
-							   'Attributes
+			(setq filename (vl-filename-base &)) ; Extract filename without path and extension
+			(if (is-empty-dwg &)
+				(write-line (strcat filename ",Document invalid.") csvfile)
+				(progn
+					(if (not (is-dwg-open-by-dwl &))
+					(progn
+						(if (/= (logand (vlax-get-property (vlax-invoke-method FileSystemObject 'getfile &) 'Attributes ) 1) 1)
+						(progn
+							(setq open-result 
+							  (vl-catch-all-apply 'vlax-invoke-method (list dbxDoc 'Open &))
+							)
+							(if (vl-catch-all-error-p open-result)
+							  (write-line (strcat filename ",incompatible version or Document is locked.") csvfile)
+							  (progn
+								;Start Modify the DWG
+								(setq ms (vla-get-modelspace dbxDoc)
+									 layers (vla-get-Layers dbxDoc) ; Get the layers collection
+									 countContour 0 ; nbr of Polyline in layer "contour_"
+								)
+								
+								;Set all layers to white (ACI color 7)
+								(vlax-for layer layers
+									(if (not (equal (vla-get-Name layer) "contour_"))
+										(vla-put-Color layer 7)
+									)
+								)
+								(princ)
+								
+								;Delete all polylignes in layer "contour_" with Area = 0.0
+								(vlax-for ent ms
+									(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
+											 (= (vla-get-Layer ent) "contour_")
+											 (= (vla-get-Area ent) 0.0)
+										) 
+											(vla-Delete ent)
+									)
+								)
+								(princ)
+								
+								;; Loop through all objects
+								(vlax-for ent ms
+									;Set all entities' color to ByLayer
+									(dsx-put-color ent acByLayer)
+									;Move closed polylines from "public.parcelle" to "contour_"
+									(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
+											 (= (vla-get-Layer ent) "public.parcelle")
+											 (= (vla-get-Closed ent) :vlax-true)
+										)
+										(progn
+											(vla-put-Layer ent "contour_")
+										)
+									)
+									
+									;Bring "contour_" polylines to front
+									(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
+											 (= (vla-get-Layer ent) "contour_")
+										)
+										(progn 
+											(setq new (vla-Copy ent))
+											(vla-Delete ent) ; delete the old one
+											new ; now the new copy is on top
+										)
+									)
+								)
+								(princ)
+								;End Modify the DWG
+							   
+								;; Run manual purge
+								(Purge-DBX dbxDoc)
+							   
+								;Count each polyline in layer "contour_"
+								(vlax-for ent ms
+									(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
+											 (= (vla-get-Layer ent) "contour_")
+										) 
+											(setq countContour (1+ countContour));iterate the Counter of polyline
+									)
+								)
+								(princ)
+							   
+								;Saveas
+								(vla-saveas dbxDoc (strcat outputPath filename ".dwg"))
+								(setq i (1+ i));iterate the Counter
+								(if (> countContour 1)
+									(write-line (strcat filename 
+														",Nombre de polylignes dans le layer contour_ est :," 
+														(itoa countContour)
+												)
+									csvfile)
+								)
+							  )
+							)
+						)
+						(write-line (strcat filename ",is read only.") csvfile)
+						)
 					)
-					1
+					(write-line (strcat filename ",is open now.") csvfile)
+					)
 				)
-				1
 			)
-			(cond
-			  ( (setq filename (vl-filename-base &)) ; Extract filename without path and extension
-				;(if Express (acet-ui-progress -1))
-				
-				(setq open-result 
-				  (vl-catch-all-apply 'vlax-invoke-method (list dbxDoc 'Open &))
-			    )
-			   (if (vl-catch-all-error-p open-result)
-				  (progn
-					(write-line (strcat filename ",Drawing file was created by an incompatible version.") csvfile)
-					(vlax-release-object dbxDoc)
-				  )
-				  (progn
-					;(Prompt (Strcat "\n Open " & ". Please wait (" (Itoa (1+ i)) "/" (Itoa ctf) ")..."))
-					;Start Modify the DWG
-					(setq ms (vla-get-modelspace dbxDoc)
-						 layers (vla-get-Layers dbxDoc) ; Get the layers collection
-						 countContour 0 ; nbr of Polyline in layer "contour_"
-					)
-					
-					;; Loop through all layers
-					(vlax-for layer layers
-						(if (not (equal (vla-get-Name layer) "contour_"))
-							(vla-put-Color layer 7) ;Set the color to white (ACI color index 7)
-						)
-					)
-					(princ)
-					
-					;; Loop through all objects
-					(vlax-for ent ms
-						(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
-								 (= (vla-get-Layer ent) "contour_")
-								 (= (vla-get-Area ent) 0.0)
-							) 
-								(vla-Delete ent)
-						)
-					)
-					(princ)
-					
-					;; Loop through all objects
-					(vlax-for ent ms
-						(dsx-put-color ent acByLayer)
-						(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
-								 (= (vla-get-Layer ent) "public.parcelle")
-								 (= (vla-get-Closed ent) :vlax-true)
-							)
-							(progn
-								(vla-put-Layer ent "contour_")
-							)
-						)
-						
-						(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
-								 (= (vla-get-Layer ent) "contour_")
-							)
-							(progn 
-								(setq new (vla-Copy ent))
-								(vla-Delete ent) ; delete the old one
-								new ; now the new copy is on top
-							)
-						)
-					)
-					(princ)
-				    ;End Modify the Mappe
-				   
-				    ;(Prompt (Strcat "\n Purge " & ". Please wait..."))
-				    ;; Run manual purge
-				    (Purge-DBX dbxDoc)
-				   
-				    ;; Loop through all objects
-					(vlax-for ent ms
-						(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
-								 (= (vla-get-Layer ent) "contour_")
-							) 
-								(setq countContour (1+ countContour));iterate the Counter of polyline
-						)
-					)
-					(princ)
-				   
-					;Save & Close & Release Object
-					;(Prompt (Strcat "\n Save and Close " & "\n"))
-					(vla-saveas dbxDoc (strcat outputPath filename ".dwg"))
-					(setq i (1+ i));iterate the Counter
-					;(setq countContour (- countContour 1))
-					(if (> countContour 1)
-						(write-line (strcat filename ",Nombre de polylignes dans le layer contour_ est :," (itoa countContour)) csvfile)
-					)
-				  )
-				)
-			   )
-			  (T (write-line (strcat filename ",Drawing file was created by an incompatible version.") csvfile))
-			);end cond
-		    )
-				(T (write-line (strcat filename ",is read-only.") csvfile))
-			);end cond
-			)
-			(T (write-line (strcat filename ",is open now.") csvfile))
-		  );end cond
 		);end foreach
-		;End progress bar
-		;(if Express (setq ProgBar (acet-ui-progress)))
-		(vlax-release-object dbxDoc)
+		(if dbxDoc (vlax-release-object dbxDoc)) ;release the COM object created by dbxDoc
 		(Gc) ;Garbage Collection : explicitly triggers garbage collection
 		(Gc) ; identify and reclaim memory occupied by objects that are no longer reachable or in use by the program
 		(Gc)
        )
-       (T (write-line "\nNothing files found to purge." csvfile))
+       (T (Prompt "\nNothing files found."))
      );end cond
 	 ;Colse the csv file
 	 (close csvfile)
@@ -367,6 +358,7 @@
   (princ)
 ) ;end CorrigerPlan
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(vl-load-com);Load the COM object
 (princ)
 
 (princ "\n Lisp Loaded Correctly.")
