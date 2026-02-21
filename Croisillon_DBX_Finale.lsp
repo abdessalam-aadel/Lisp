@@ -7,7 +7,14 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;;  Start function Create-Croix
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(defun Create-Croix (ms ech pl / minPt maxPt step size x y pt)
+(defun Create-Croix (ms ech pl
+					/ 	minPt maxPt step size h
+						p1 p2 p3 p4 pp1 pp2 pp3 pp4
+						cp1 cp2
+						ang1 ang2 ang3 ang4
+						x y xx yy p pt1 pt2 ptt1
+						x0 y0 p0 dist newPt pm 
+					)
 
 	(if (null pl)
 		(progn
@@ -15,26 +22,15 @@
 		  (exit)
 		)
 	)
-	;; Bounding box de la polyligne
+	
+	;; Start Bounding box of polyligne
 	(vla-getBoundingBox pl 'minPt 'maxPt)
-	; (setq p1 (SafeArray->List minPt))
-	; (setq p3 (SafeArray->List maxPt))
-
-	; (setq p2 (list (car p3) (cadr p1)))
-	; (setq p4 (list (car p1) (cadr p3)))
-	; p1 ---- p2
-	; |        |
-	; p4 ---- p3
 
 	(setq p2 (SafeArray->List minPt))
 	(setq pp4 (SafeArray->List maxPt))
 	(setq p1 (list (car pp4) (cadr p2)))
 	(setq p3 p2)
 	(setq p4 (list (car p2) (cadr pp4)))
-	
-	; p4
-	; |        
-	; p2=p3 ---- p1
 	
 	(setq step (* ech 0.10))
 	(setq size (* ech 0.0025))
@@ -60,6 +56,7 @@
 		   )
 		)
 	)
+	
 	(setq p4 (polar p3 (angle p1 p2) (distance p1 p2))) ; (polar base-point angle distance)
 	
 	(setq pp1 p1)
@@ -131,18 +128,10 @@
 		   (progn
 			 (setq pt1 (list xx (- yy size)))
 			 (setq pt2 (list xx (+ yy size)))
-			 (setq objLine (vla-addLine ms
-				   (Point->Variant pt1)
-				   (Point->Variant pt2)
-				 ))
-			 (vla-put-Layer objLine "Limite_plan")
+			 (Add-Line-OnLayer ms pt1 pt2 "Limite_plan")
 			 (setq pt1 (list (- xx size) yy ))
 			 (setq pt2 (list (+ xx size) yy ))
-			 (setq objLine (vla-addLine ms
-				   (Point->Variant pt1)
-				   (Point->Variant pt2)
-				 ))
-			 (vla-put-Layer objLine "Limite_plan")
+			 (Add-Line-OnLayer ms pt1 pt2 "Limite_plan")
 		   );progn
 		 );if
 		 (setq xx (+ xx step))
@@ -157,7 +146,7 @@
 	   (setq pt1 (list xx (nth 1 cp2)))
 	   (setq pt2 (list xx (nth 1 cp1)))
 		 (setq p (inters pp1 pp2 pt1 pt2))
-		 (if (/= p nil)
+		 (if p ;if p is not null
 		   (progn
 			 (setq pt1 (list (nth 0 p) (+ (nth 1 p) (* ech 0.003))))
 			 (setq ptt1 (list (nth 0 p) (+ (nth 1 p) (* ech 0.0045))))
@@ -168,50 +157,25 @@
 				 (setq ptt1 (list (nth 0 p) (- (nth 1 p) (* ech 0.0045)))) 
 			   )
 			 )
-			 (setq objLine (vla-addLine ms
-				   (Point->Variant p)
-				   (Point->Variant pt1)
-				 ))
-			 (vla-put-Layer objLine "Limite_plan")
+			 (Add-Line-OnLayer ms p pt1 "Limite_plan")
 			 (setq x (nth 0 p))
 			 (setq dist (rtos x 2 0))
 			 (setq newPt (list (car ptt1) (+ 13 (cadr ptt1))))
-			 (if (equal pt1 pt2)
-			   (progn
-					(setq txt (vla-AddText ms dist (Point->Variant newPt) h))
-					(vla-put-Alignment txt acAlignmentMiddleLeft)
-					(vla-put-TextAlignmentPoint txt (Point->Variant newPt))
-					(vla-put-Rotation txt (* pi 1.5)) ;; 270°
-					(vla-put-StyleName txt "ITALIC")
-					(vla-put-Layer txt "Limite_plan")
-				)
-			   (progn
-					(setq txt (vla-AddText ms dist (Point->Variant newPt) h))
-					(vla-put-Alignment txt acAlignmentMiddleLeft)
-					(vla-put-TextAlignmentPoint txt (Point->Variant newPt))
-					(vla-put-Rotation txt (* pi 1.5)) ;; 270°
-					(vla-put-StyleName txt "ITALIC")
-					(vla-put-Layer txt "Limite_plan")
-				)
-			 )
+			 (Add-Text-OnLayer ms dist newPt h (* pi 1.5) "Limite_plan") ;; pi*1.5 = 270°
 		   );progn
 		 );if
 		 
 		(setq pt1 (list xx (nth 1 cp2)))
 		(setq pt2 (list xx (nth 1 cp1)))
 		(setq p (inters pp3 pp4 pt1 pt2))
-		(if (/= p nil)
+		(if p
 			(progn
 				(setq pt1 (list (nth 0 p) (+ (nth 1 p) (* ech 0.003))))
 				(setq pt2 (list (nth 0 p) (- (nth 1 p) (* ech 0.003))))
 				(if (and (<= ang1 (angle p1 pt2)) (<= (angle p1 pt2) ang2) (<= ang3 (angle p4 pt2)) (<= (angle p4 pt2) ang4) )
 				 (setq pt1 pt2)
 				)
-				(setq objLine (vla-addLine ms
-				   (Point->Variant p)
-				   (Point->Variant pt1)
-				 ))
-				(vla-put-Layer objLine "Limite_plan")
+				(Add-Line-OnLayer ms p pt1 "Limite_plan")
 			);progn
 		);if 
 		(setq xx (+ xx (* ech 0.10)))
@@ -226,7 +190,7 @@
 		(setq pt2 (list (nth 0 cp2) yy ))
 
 		(setq p (inters pt1 pt2 pp1 pp3))
-		(if (/= p nil)
+		(if p
 			(progn
 			 (setq pt1 (list (+ (nth 0 p) (* ech 0.003)) (nth 1 p) ))
 			 (setq pt2 (list (- (nth 0 p) (* ech 0.003)) (nth 1 p) ))
@@ -235,49 +199,24 @@
 			   (setq pt1 pt2)
 			   (setq ptt1 (list (+ (nth 0 p) (* ech 0.0045)) (nth 1 p)))
 			 )
-			 (setq objLine (vla-addLine ms
-				   (Point->Variant p)
-				   (Point->Variant pt1)
-				 ))
-			 (vla-put-Layer objLine "Limite_plan")
+			 (Add-Line-OnLayer ms p pt1 "Limite_plan")
 			 (setq y (nth 1 p))
 			 (setq dist (rtos y 2 0))
-			 (if (equal pt1 pt2)
-			   (progn
-					(setq txt (vla-AddText ms dist (Point->Variant ptt1) h))
-					(vla-put-Alignment txt acAlignmentMiddleLeft)
-					(vla-put-TextAlignmentPoint txt (Point->Variant ptt1))
-					(vla-put-Rotation txt 0.0) ;; 0°
-					(vla-put-StyleName txt "ITALIC")
-					(vla-put-Layer txt "Limite_plan")
-				)
-			   (progn
-					(setq txt (vla-AddText ms dist (Point->Variant ptt1) h))
-					(vla-put-Alignment txt acAlignmentMiddleLeft)
-					(vla-put-TextAlignmentPoint txt (Point->Variant ptt1))
-					(vla-put-Rotation txt 0.0) ;; 0°
-					(vla-put-StyleName txt "ITALIC")
-					(vla-put-Layer txt "Limite_plan")
-				)
-			 )
+			 (Add-Text-OnLayer ms dist ptt1 h 0.0 "Limite_plan") ; 0.0 = 0°
 			);progn
 		);if
 		
 		(setq pt1 (list (nth 0 cp1) yy))
 		(setq pt2 (list (nth 0 cp2) yy ))
 		(setq p (inters pt1 pt2 pp2 pp4))
-		(if (/= p nil)
+		(if p
 			(progn
 				(setq pt1 (list (+ (nth 0 p) (* ech 0.003)) (nth 1 p) ))
 				(setq pt2 (list (- (nth 0 p) (* ech 0.003)) (nth 1 p) ))
 				(if (and (< ang1 (angle p1 pt2)) (< (angle p1 pt2) ang2) (< ang3 (angle p4 pt2)) (< (angle p4 pt2) ang4) )
 				(setq pt1 pt2)
 				)
-				(setq objLine (vla-addLine ms
-				   (Point->Variant p)
-				   (Point->Variant pt1)
-				 ))
-				(vla-put-Layer objLine "Limite_plan")
+				(Add-Line-OnLayer ms p pt1 "Limite_plan")
 			);progn
 		);if
 
@@ -286,65 +225,19 @@
 
 	(princ)
 )
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Get cp1(MaxX;MaxY) cp1(MinX;MinY)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun rect ( / xs ys)
+  (setq xs (mapcar 'car (list p1 p2 p3 p4)))
+  (setq ys (mapcar 'cadr (list p1 p2 p3 p4)))
 
-(defun rect()
-	;-----------Start Prend Max X et Y
-   (setq cx (nth 0 p1)
-         cy (nth 1 p1)
-   )
-
-   (if (< cx (nth 0 p2))
-     (setq cx (nth 0 p2))
-   )
-   (if (< cx (nth 0 p3))
-     (setq cx (nth 0 p3))
-   )
-   (if (< cx (nth 0 p4))
-     (setq cx (nth 0 p4))
-   )
-
-   (if (< cy (nth 1 p2))
-     (setq cy (nth 1 p2))
-   )
-   (if (< cy (nth 1 p3))
-     (setq cy (nth 1 p3))
-   )
-   (if (< cy (nth 1 p4))
-     (setq cy (nth 1 p4))
-   )
-   ;-----------Fin Prend Max X et Y
-   
-   ;Store Max X et Y : cp1(MaxX;MaxY)
-   (setq cp1 (list cx cy))
-	
-	;-----------Start Prend Min X et Y
-   (setq cx (nth 0 p1)
-         cy (nth 1 p1)
-   )
-   (if (> cx (nth 0 p2))
-     (setq cx (nth 0 p2))
-   )
-   (if (> cx (nth 0 p3))
-     (setq cx (nth 0 p3))
-   )
-   (if (> cx (nth 0 p4))
-     (setq cx (nth 0 p4))
-   )
-
-   (if (> cy (nth 1 p2))
-     (setq cy (nth 1 p2))
-   )
-   (if (> cy (nth 1 p3))
-     (setq cy (nth 1 p3))
-   )
-   (if (> cy (nth 1 p4))
-     (setq cy (nth 1 p4))
-   )
-   ;-----------Fin Prend Min X et Y
-   ;Store Min X et Y : cp1(MinX;MinY)
-   (setq cp2 (list cx cy))
+  (setq cp1 (list (apply 'max xs) (apply 'max ys)))
+  (setq cp2 (list (apply 'min xs) (apply 'min ys)))
 )
-
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; SafeArray
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun SafeArray->List (obj)
   (cond
     ((= (type obj) 'variant)
@@ -355,7 +248,9 @@
     )
   )
 )
-
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Point to SafeArray
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun Point->Variant (pt / sa)
   (setq sa (vlax-make-safearray vlax-vbDouble '(0 . 2)))
   (vlax-safearray-fill sa
@@ -367,7 +262,40 @@
   )
   (vlax-make-variant sa)
 )
-
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Add Line on layer
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun Add-Line-OnLayer (ms p1 p2 layer / obj)
+  (setq obj
+    (vla-addLine ms
+      (Point->Variant p1)
+      (Point->Variant p2)
+    )
+  )
+  (vla-put-Layer obj layer)
+  obj
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Add text on layer
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun Add-Text-OnLayer (ms txtStr pt height rot layer / txt)
+  (setq txt (vla-AddText ms txtStr (Point->Variant pt) height))
+  (vla-put-Alignment txt acAlignmentMiddleLeft)
+  (vla-put-TextAlignmentPoint txt (Point->Variant pt))
+  (vla-put-Rotation txt rot)
+  (vla-put-StyleName txt "ITALIC")
+  (vla-put-Layer txt layer)
+  txt
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Add Layer Auto-Creation
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun Ensure-Layer (doc name / layers)
+  (setq layers (vla-get-Layers doc))
+  (if (not (tblsearch "LAYER" name))
+    (vla-add layers name)
+  )
+)
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; ObjectDBX Document object, which allows manipulation of DWG files without opening a GUI drawing window.
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -512,25 +440,29 @@
 		)
 		
 		;Start Foreach Loop
-		(foreach & Files
-			(setq filename (vl-filename-base &)) ; Extract filename without path and extension
+		(foreach dwgFile Files
+			(setq filename (vl-filename-base dwgFile)) ; Extract filename without path and extension
 			(setq Ech 0)
-			(if (is-empty-dwg &)
+			(if (is-empty-dwg dwgFile)
 				(write-line (strcat filename ",Document invalid.") csvfile)
 				(progn
-					(if (not (is-dwg-open-by-dwl & pcName))
+					(if (not (is-dwg-open-by-dwl dwgFile pcName))
 					(progn
-						(if (/= (logand (vlax-get-property (vlax-invoke-method FileSystemObject 'getfile &) 'Attributes ) 1) 1)
+						(if (/= (logand (vlax-get-property (vlax-invoke-method FileSystemObject 'getfile dwgFile) 'Attributes ) 1) 1)
 						(progn
 							(setq open-result 
-							  (vl-catch-all-apply 'vlax-invoke-method (list dbxDoc 'Open &))
+							  (vl-catch-all-apply 'vlax-invoke-method (list dbxDoc 'Open dwgFile))
 							)
 							(if (vl-catch-all-error-p open-result)
 							  (write-line (strcat filename ",incompatible version or Document is locked.") csvfile)
 							  (progn
 								;Start Modify the DWG
 								(setq ms (vla-get-modelspace dbxDoc))
-								;1 Vlax-For Detect Echelle
+								
+								;;Creat layer if not exist
+								(Ensure-Layer dbxDoc "Limite_plan")
+								
+								;1 Vlax-For Detect Scale
 							    (vlax-for ent ms
 								  (if (and (= (vla-get-objectname ent) "AcDbMText")
 										   (= (vla-get-Layer ent) "PDF_TEXT_PLAN_SCALE")) ; Contents : {\C256;\c16777215;1:1 500}
@@ -555,24 +487,18 @@
 								)
 								(princ)
 								
+								;2 Vlax-For Detect Polyline & Delete Old Cross
 								(vlax-for ent ms
-									(if (and
-										  (or 	(= (vla-get-ObjectName ent) "AcDbLine")
-												(= (vla-get-ObjectName ent) "AcDbMText")
-										  )
-										  (= (vla-get-Layer ent) "Limite_plan")
+									(cond
+										((and (= (vla-get-ObjectName ent) "AcDbPolyline")
+											  (= (vla-get-Layer ent) "Limite_plan"))
+										 (setq pl ent)
 										)
-										(vla-delete ent)
-									)
-								)
-								(princ)
-								
-								(vlax-for ent ms
-									(if (and
-										  (= (vla-get-ObjectName ent) "AcDbPolyline")
-										  (= (vla-get-Layer ent) "Limite_plan")
+
+										((and (member (vla-get-ObjectName ent) '("AcDbLine" "AcDbMText"))
+											  (= (vla-get-Layer ent) "Limite_plan"))
+										 (vla-delete ent)
 										)
-									  (setq pl ent)
 									)
 								)
 								(princ)
