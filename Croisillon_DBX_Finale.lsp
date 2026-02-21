@@ -23,19 +23,20 @@
 		)
 	)
 	
-	;; Start Bounding box of polyligne
+	;; Start Get Bounding Box of polyligne
 	(vla-getBoundingBox pl 'minPt 'maxPt)
 
-	(setq p2 (SafeArray->List minPt))
-	(setq pp4 (SafeArray->List maxPt))
-	(setq p1 (list (car pp4) (cadr p2)))
-	(setq p3 p2)
-	(setq p4 (list (car p2) (cadr pp4)))
+	(setq p2 (SafeArray->List minPt))		;p2 = (xmin ymin zmin) → bottom-left corner
+	(setq pp4 (SafeArray->List maxPt))		;pp4 = (xmax ymax zmax) → top-right corner
+	(setq p1 (list (car pp4) (cadr p2)))	;p1 = (xmax, ymin) → bottom-right corner
+	(setq p3 p2)							;p3 = p2
+	(setq p4 (list (car p2) (cadr pp4)))	;p4 = (xmin, ymax) → top-left corner
 	
 	(setq step (* ech 0.10))
 	(setq size (* ech 0.0025))
 	(setq h (* 0.002 ech))
 	
+	;Checks whether points are equal within a tolerance of 0.01 units.
 	(if (equal p1 p3 0.01)
 		(setq p3 p4)
 	)
@@ -56,8 +57,9 @@
 		   )
 		)
 	)
-	
-	(setq p4 (polar p3 (angle p1 p2) (distance p1 p2))) ; (polar base-point angle distance)
+	;angle : Returns the angle from two points (in radians)
+	;(polar base-point angle distance) => Creates a new point starting from base-point, moving at the specified angle and distance
+	(setq p4 (polar p3 (angle p1 p2) (distance p1 p2))) 
 	
 	(setq pp1 p1)
 	(setq pp2 p2)
@@ -65,8 +67,13 @@
 	(setq pp4 p4)
 
 	(rect)
-   
-	(setq x0  (fix  (/ (nth 0 cp2) (* 0.1 ech)) ))
+	
+	;fix :Converts the result to an integer by truncating the decimal part
+	;	 (does NOT round — it simply cuts off decimals). 
+	;	x0 = integer_part_of(Xcp2/(0.1×ech​​))
+	;Example:	(fix 3.9) → 3
+	;			(fix -3.9) → -3
+	(setq x0  (fix  (/ (nth 0 cp2) (* 0.1 ech)) )) 
 	(setq y0  (fix  (/ (nth 1 cp2) (* 0.1 ech)) ))
 	(setq x0 (* (+ x0 1) (* 0.1 ech)))
 	(setq y0 (* (+ y0 1) (* 0.1 ech)))
@@ -167,6 +174,7 @@
 		 
 		(setq pt1 (list xx (nth 1 cp2)))
 		(setq pt2 (list xx (nth 1 cp1)))
+		;inters : Returns the intersection of of two lines: Line 1: from pp3 to pp4;Line 2: from pt1 to pt2
 		(setq p (inters pp3 pp4 pt1 pt2))
 		(if p
 			(progn
@@ -236,7 +244,7 @@
   (setq cp2 (list (apply 'min xs) (apply 'min ys)))
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-;;; SafeArray
+;;; Return Variants containing SafeArrays, not regular lists.
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun SafeArray->List (obj)
   (cond
@@ -249,7 +257,7 @@
   )
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-;;; Point to SafeArray
+;;; Converts a 3D point list (x y z) into a COM Variant containing a SafeArray
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun Point->Variant (pt / sa)
   (setq sa (vlax-make-safearray vlax-vbDouble '(0 . 2)))
@@ -288,7 +296,7 @@
   txt
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-;;; Add Layer Auto-Creation
+;;; Add Layer, Auto-Creation
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun Ensure-Layer (doc name / layers)
   (setq layers (vla-get-Layers doc))
@@ -397,7 +405,6 @@
   );end cond
   Path
 )
-
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start Main Command Croisillon
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
