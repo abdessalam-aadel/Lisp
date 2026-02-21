@@ -75,9 +75,6 @@
 	(setq y0 (* (+ y0 1) (* 0.1 ech)))
 	(setq p0 (list x0 y0 ))
 	
-	;;;creat Layer
-	;;;;;
-	
 	(setq ang1 (angle p1 p2))
 	(if (<= pi ang1)
 		(progn
@@ -134,28 +131,24 @@
 		   (progn
 			 (setq pt1 (list xx (- yy size)))
 			 (setq pt2 (list xx (+ yy size)))
-			 (vla-addLine ms
-			   (Point->Variant pt1)
-			   (Point->Variant pt2)
-			 )
+			 (setq objLine (vla-addLine ms
+				   (Point->Variant pt1)
+				   (Point->Variant pt2)
+				 ))
+			 (vla-put-Layer objLine "Limite_plan")
 			 (setq pt1 (list (- xx size) yy ))
 			 (setq pt2 (list (+ xx size) yy ))
-			 (vla-addLine ms
-			   (Point->Variant pt1)
-			   (Point->Variant pt2)
-			 )
+			 (setq objLine (vla-addLine ms
+				   (Point->Variant pt1)
+				   (Point->Variant pt2)
+				 ))
+			 (vla-put-Layer objLine "Limite_plan")
 		   );progn
 		 );if
 		 (setq xx (+ xx step))
 		);while
 	   (setq yy (+ yy step))
 	);while
-	
-	;;(command "_layer" "s" "cr" "")
-
-	; (if (= (getvar "DWGTITLED") 0)
-		; (command "_style" "_romans" "romans.shx" "0" "1" "0" "n" "n" "n")
-	; )
 	
 	(setq yy y0)
 	(setq xx x0)
@@ -175,11 +168,11 @@
 				 (setq ptt1 (list (nth 0 p) (- (nth 1 p) (* ech 0.0045)))) 
 			   )
 			 )
-			 (vla-addLine ms
+			 (setq objLine (vla-addLine ms
 				   (Point->Variant p)
 				   (Point->Variant pt1)
-				 )
-			 ;(command "_layer" "s" "tx" "")
+				 ))
+			 (vla-put-Layer objLine "Limite_plan")
 			 (setq x (nth 0 p))
 			 (setq dist (rtos x 2 0))
 			 (setq newPt (list (car ptt1) (+ 13 (cadr ptt1))))
@@ -190,6 +183,7 @@
 					(vla-put-TextAlignmentPoint txt (Point->Variant newPt))
 					(vla-put-Rotation txt (* pi 1.5)) ;; 270°
 					(vla-put-StyleName txt "ITALIC")
+					(vla-put-Layer txt "Limite_plan")
 				)
 			   (progn
 					(setq txt (vla-AddText ms dist (Point->Variant newPt) h))
@@ -197,6 +191,7 @@
 					(vla-put-TextAlignmentPoint txt (Point->Variant newPt))
 					(vla-put-Rotation txt (* pi 1.5)) ;; 270°
 					(vla-put-StyleName txt "ITALIC")
+					(vla-put-Layer txt "Limite_plan")
 				)
 			 )
 		   );progn
@@ -212,10 +207,11 @@
 				(if (and (<= ang1 (angle p1 pt2)) (<= (angle p1 pt2) ang2) (<= ang3 (angle p4 pt2)) (<= (angle p4 pt2) ang4) )
 				 (setq pt1 pt2)
 				)
-				(vla-addLine ms
+				(setq objLine (vla-addLine ms
 				   (Point->Variant p)
 				   (Point->Variant pt1)
-				 )
+				 ))
+				(vla-put-Layer objLine "Limite_plan")
 			);progn
 		);if 
 		(setq xx (+ xx (* ech 0.10)))
@@ -239,11 +235,11 @@
 			   (setq pt1 pt2)
 			   (setq ptt1 (list (+ (nth 0 p) (* ech 0.0045)) (nth 1 p)))
 			 )
-			 (vla-addLine ms
+			 (setq objLine (vla-addLine ms
 				   (Point->Variant p)
 				   (Point->Variant pt1)
-				 )
-			 ;(command "_layer" "s" "tx" "")
+				 ))
+			 (vla-put-Layer objLine "Limite_plan")
 			 (setq y (nth 1 p))
 			 (setq dist (rtos y 2 0))
 			 (if (equal pt1 pt2)
@@ -253,6 +249,7 @@
 					(vla-put-TextAlignmentPoint txt (Point->Variant ptt1))
 					(vla-put-Rotation txt 0.0) ;; 0°
 					(vla-put-StyleName txt "ITALIC")
+					(vla-put-Layer txt "Limite_plan")
 				)
 			   (progn
 					(setq txt (vla-AddText ms dist (Point->Variant ptt1) h))
@@ -260,6 +257,7 @@
 					(vla-put-TextAlignmentPoint txt (Point->Variant ptt1))
 					(vla-put-Rotation txt 0.0) ;; 0°
 					(vla-put-StyleName txt "ITALIC")
+					(vla-put-Layer txt "Limite_plan")
 				)
 			 )
 			);progn
@@ -275,10 +273,11 @@
 				(if (and (< ang1 (angle p1 pt2)) (< (angle p1 pt2) ang2) (< ang3 (angle p4 pt2)) (< (angle p4 pt2) ang4) )
 				(setq pt1 pt2)
 				)
-				(vla-addLine ms
+				(setq objLine (vla-addLine ms
 				   (Point->Variant p)
 				   (Point->Variant pt1)
-				 )
+				 ))
+				(vla-put-Layer objLine "Limite_plan")
 			);progn
 		);if
 
