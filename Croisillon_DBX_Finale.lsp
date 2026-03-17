@@ -323,12 +323,6 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Add Layer, Auto-Creation + Add lintype
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-; (defun Ensure-Layer (doc name / layers)
-  ; (setq layers (vla-get-Layers doc))
-  ; (if (not (tblsearch "LAYER" name))
-    ; (vla-add layers name)
-  ; )
-; )
 (defun Ensure-Layer (doc name / layers)
   (setq layers (vla-get-Layers doc))
   (if (vl-catch-all-error-p
@@ -336,20 +330,6 @@
     (vla-add layers name)
   )
 )
-
-; (defun Ensure-Linetype (doc name file / ltypes lt)
-  ; (setq ltypes (vla-get-Linetypes doc))
-
-  ; (setq lt (vl-catch-all-apply 'vla-item (list ltypes name)))
-
-  ; ;; If exists → delete it
-  ; (if (not (vl-catch-all-error-p lt))
-    ; (vla-delete lt)
-  ; )
-
-  ; ;; Reload from file
-  ; (vla-load ltypes name file)
-; )
 
 (defun Ensure-Linetype (doc name file / ltypes) 
 	(setq ltypes (vla-get-Linetypes doc)) 
@@ -616,15 +596,6 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Split-MText-Lines
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-; (defun Split-MText-Lines (txt / lines)
-  ; ;; Replace CRLF or LF with just LF
-  ; (setq txt (vl-string-subst "\n" "\r\n" txt))
-  
-  ; ;; Split text into a list of lines
-  ; (setq lines (vl-string->list txt "\n"))
-  
-  ; lines
-; )
 (defun Split-MText-Lines (txt / pos lines)
   (setq lines '())
   (while (setq pos (vl-string-search "\n" txt))
@@ -632,6 +603,63 @@
     (setq txt (substr txt (+ pos 2)))
   )
   (reverse (cons txt lines))
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Function to get polyline signature
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+; (defun PolySignature (ent / coords)
+  ; (setq coords
+        ; (vlax-safearray->list
+          ; (vlax-variant-value
+            ; (vla-get-Coordinates ent))))
+  ; (vl-princ-to-string coords)
+; )
+; (defun PolySignature (ent / coords rev)
+  ; (setq coords
+        ; (vlax-safearray->list
+          ; (vlax-variant-value
+            ; (vla-get-Coordinates ent))))
+
+  ; (setq rev (reverse coords))
+
+  ; (if (< (vl-princ-to-string coords) (vl-princ-to-string rev))
+    ; (vl-princ-to-string coords)
+    ; (vl-princ-to-string rev)
+  ; )
+; )
+
+(defun Coords->Points (coords / pts)
+  (while coords
+    (setq pts (cons (list (car coords) (cadr coords)) pts))
+    (setq coords (cddr coords))
+  )
+  (reverse pts)
+)
+
+(defun Points->Coords (pts)
+  (apply 'append pts)
+)
+
+(defun PolySignature (ent / coords pts rev sig1 sig2)
+
+  (setq coords
+        (vlax-safearray->list
+          (vlax-variant-value
+            (vla-get-Coordinates ent))))
+
+  (setq pts (Coords->Points coords))
+
+  ;; reversed vertices
+  (setq rev (reverse pts))
+
+  (setq sig1 (vl-princ-to-string (Points->Coords pts)))
+  (setq sig2 (vl-princ-to-string (Points->Coords rev)))
+
+  ;; return canonical signature
+  (if (< sig1 sig2)
+    sig1
+    sig2
+  )
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start Main Command Croisillon
@@ -726,20 +754,6 @@
 									  )
 									)
 								  )
-								  ; (if (and (= (vla-get-objectname ent) "AcDbMText")
-										   ; (= (vla-get-Layer ent) "Text_info"))
-									; (if (vl-string-search "dossier de demande :" (vla-get-TextString ent))
-									  ; (progn
-										; (setq num_demande (vla-get-TextString ent))
-										; ; Remove the "N° dossier de demande :"
-										; (setq pos (vl-string-search ": " num_demande))
-										; (setq num_demande (substr num_demande (+ pos 2)))
-										; ; in one line
-										; ;(setq num_demande (substr Ech (+ (vl-string-search ":" Ech) 2)))
-										; (setq num_demande (vl-string-subst "" " " num_demande)); Remove the space
-									  ; )
-									; )
-								  ; )
 								  (if (and (= (vla-get-objectname ent) "AcDbMText")
 										   (= (vla-get-Layer ent) "0")
 										   (vl-string-search "Parcelle de" (vla-get-TextString ent))
@@ -885,6 +899,25 @@
 									)
 								)
 								(princ)
+								
+								(setq seen '())
+								(vlax-for ent ms
+									(if (and
+											(= (vla-get-objectname ent) "AcDbPolyline")
+											(= (vla-get-layer ent) "RIVRAIN_SEGMENTS")
+										)
+										(progn
+											(setq sig (PolySignature ent))
+
+											(if (member sig seen)
+											  (vla-delete ent)
+											  (setq seen (cons sig seen))
+											)
+										)
+									)
+								)
+								(princ)
+								
 								
 								(if (and (numberp Ech) (> Ech 0))
 									(Create-Croix ms Ech pl)
