@@ -281,6 +281,7 @@
     )
   )
   (vla-put-Layer obj layer)
+  (vla-put-Color obj 7)
   obj
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -293,6 +294,7 @@
   (vla-put-Rotation txt rot)
   (vla-put-StyleName txt "ITALIC")
   (vla-put-Layer txt layer)
+  (vla-put-Color txt 7)
   txt
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -406,6 +408,57 @@
   Path
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Start function to Purge using Object DBX
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun Purge-DBX (dbxDoc / try-delete defcoll)
+
+  ;Safe delete wrapper
+  (defun try-delete (obj)
+    (vl-catch-all-apply 'vla-delete (list obj))
+  )
+
+  ;Helper to purge a definition collection
+  (defun defcoll (collection skiplist)
+    (vlax-for item collection
+      (if (not (member (strcase (vla-get-name item)) skiplist))
+        (try-delete item)
+      )
+    )
+  )
+
+  ;Purge Blocks
+  (defcoll (vla-get-blocks dbxDoc) '("MODEL_SPACE" "PAPER_SPACE"))
+
+  ;Purge Layers (except 0 and Defpoints)
+  (defcoll (vla-get-layers dbxDoc) '("0" "DEFPOINTS"))
+
+  ;Purge Linetypes
+  (defcoll (vla-get-linetypes dbxDoc) '("BYLAYER" "BYBLOCK" "CONTINUOUS"))
+
+  ;You can add more here: dimension styles, text styles, etc.
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Load line Type "acadiso.lin"
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun LoadLinetypeToDBX (dbxDoc ltype)
+	(if (not (tblsearch "LTYPE" ltype))
+		(vla-load (vla-get-Linetypes dbxDoc) ltype "acadiso.lin")
+	)
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Start Function Replace using Regex
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(or (vl-bb-ref '*REX*)
+    (vl-bb-set '*REX* (vlax-create-object "VBScript.RegExp"))
+)
+
+  (defun _RegExReplace ( newstr pat string )
+    (vlax-put    (vl-bb-ref '*REX*) 'Pattern pat)
+    (vlax-put    (vl-bb-ref '*REX*) 'Global actrue)
+    (vlax-put    (vl-bb-ref '*REX*) 'IgnoreCase acfalse)
+    (vlax-invoke (vl-bb-ref '*REX*) 'Replace string newstr)
+  )
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start Main Command Croisillon
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun c:Croisillon (/   ctf	  	  DwgPath    csvPathFile csvfile     pcName
@@ -466,6 +519,11 @@
 								;Start Modify the DWG
 								(setq ms (vla-get-modelspace dbxDoc))
 								
+								;; Ensure the linetype is loaded - ACAD_ISO03W100
+								(if (not (tblsearch "LTYPE" "HIDDEN"))
+									(vla-load (vla-get-Linetypes dbxDoc) "HIDDEN" "acadiso.lin")
+								)
+								
 								;;Creat layer if not exist
 								(Ensure-Layer dbxDoc "Limite_plan")
 								
@@ -491,7 +549,64 @@
 									  )
 									)
 								  )
+								  (if (and (= (vla-get-objectname ent) "AcDbMText")
+										   (= (vla-get-Layer ent) "Text_info"))
+									(if (vl-string-search "dossier de demande :" (vla-get-TextString ent))
+									  (progn
+										(setq num_demande (vla-get-TextString ent))
+										; Remove the "N° dossier de demande :"
+										(setq pos (vl-string-search ": " num_demande))
+										(setq num_demande (substr num_demande (+ pos 2)))
+										; in one line
+										;(setq num_demande (substr Ech (+ (vl-string-search ":" Ech) 2)))
+										
+										(write-line (strcat filename "," num_demande) csvfile)
+									  )
+									)
+								  )
 								)
+								(princ)
+								 
+								;;Delete par12564 par....
+								(vlax-for ent ms
+									(if (and 	(= (vla-get-objectname ent) "AcDbMText")
+												(= (vla-get-Layer ent) "0")
+												(vl-string-search "par" (vla-get-TextString ent))
+											)
+										(progn
+											(setq modifiedText (_RegExReplace "" "\r?\n?par[0-9]+" (vla-get-TextString ent)) )
+											(vla-put-TextString ent modifiedText)
+										);end progn
+									);end if
+									(if (and 	(= (vla-get-objectname ent) "AcDbMText")
+												(= (vla-get-Layer ent) "0")
+												(vl-string-search "P" (vla-get-TextString ent))
+											)
+										(progn
+											(setq modifiedText (_RegExReplace "" "P[0-9]+\r?\n?" (vla-get-TextString ent)) )
+											(vla-put-TextString ent modifiedText)
+										);end progn
+									);end if
+									(if (and 	(= (vla-get-objectname ent) "AcDbMText")
+												(= (vla-get-Layer ent) "0")
+												(vl-string-search "B" (vla-get-TextString ent))
+											)
+										(progn
+											(setq modifiedText (_RegExReplace "F" "B(?=[0-9]+)" (vla-get-TextString ent)) )
+											(vla-put-TextString ent modifiedText)
+										);end progn
+									);end if
+									
+									(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
+											 (= (vla-get-Layer ent) "DETAIL_LINE")
+										)
+										(progn
+											(vla-put-Linetype ent "HIDDEN")
+											(vla-put-LinetypeScale ent scale)
+										)
+									)
+								 
+								);End Vlax for
 								(princ)
 								
 								;2 Vlax-For Detect Polyline & Delete Old Cross
@@ -514,11 +629,21 @@
 									(Create-Croix ms Ech pl)
 									(write-line (strcat filename ",Echelle introuvable.") csvfile)
 								)
+								
+								(setq scale (* 0.2 (/ Ech 1000.0)))
+								;; Loop through all objects
+								(vlax-for ent ms
+									
+								)
+								(princ)
+								
+								;; Run manual purge
+								(Purge-DBX dbxDoc)
 
 								(setq i (1+ i));iterate the Counter
-								
+								(setq newfilename (strcat "CF-" (if num_demande num_demande "") "-PPDef"))
 								;Saveas
-								(vla-saveas dbxDoc (strcat outputPath filename ".dwg"))
+								(vla-saveas dbxDoc (strcat outputPath newfilename ".dwg"))
 							  )
 							)
 						)
