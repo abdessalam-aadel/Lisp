@@ -151,12 +151,12 @@
 	(setq yy y0)
 	(setq xx x0)
 	(while (< xx (nth 0 cp1)) 
-	   (setq p (list xx yy)) 
-	   (setq pt1 (list xx (nth 1 cp2)))
-	   (setq pt2 (list xx (nth 1 cp1)))
-		 (setq p (inters pp1 pp2 pt1 pt2))
-		 (if p ;if p is not null
-		   (progn
+		(setq p (list xx yy)) 
+		(setq pt1 (list xx (nth 1 cp2)))
+		(setq pt2 (list xx (nth 1 cp1)))
+		(setq p (inters pp1 pp2 pt1 pt2))
+		(if p ;if p is not null
+			(progn
 			 (setq pt1 (list (nth 0 p) (+ (nth 1 p) (* ech 0.003))))
 			 (setq ptt1 (list (nth 0 p) (+ (nth 1 p) (* ech 0.0045))))
 			 (setq pt2 (list (nth 0 p) (- (nth 1 p) (* ech 0.003))))
@@ -169,10 +169,14 @@
 			 (Add-Line-OnLayer ms p pt1 "Limite_plan")
 			 (setq x (nth 0 p))
 			 (setq dist (rtos x 2 0))
-			 (setq newPt (list (car ptt1) (+ 13 (cadr ptt1))))
-			 (Add-Text-OnLayer ms dist newPt h (* pi 1.5) "Limite_plan") ;; pi*1.5 = 270°
-		   );progn
-		 );if
+			 ;(setq newPt (list (car ptt1) (+ 13 (cadr ptt1))))
+			 ;(setq newPt (list (car newPt) (+ (cadr newPt) (/ (* 13.0 ech) 2500.0)) ))
+			 (if (equal pt1 pt2)
+			   (Add-Text-OnLayer ms dist ptt1 h (* pi 1.5) "Limite_plan" "ml") ;; pi*1.5 = 270°
+			   (Add-Text-OnLayer ms dist ptt1 h (* pi 1.5) "Limite_plan" "mr")
+			 )
+			);progn
+		);if
 		 
 		(setq pt1 (list xx (nth 1 cp2)))
 		(setq pt2 (list xx (nth 1 cp1)))
@@ -212,7 +216,10 @@
 			 (Add-Line-OnLayer ms p pt1 "Limite_plan")
 			 (setq y (nth 1 p))
 			 (setq dist (rtos y 2 0))
-			 (Add-Text-OnLayer ms dist ptt1 h 0.0 "Limite_plan") ; 0.0 = 0°
+			 (if (equal pt1 pt2)
+			   (Add-Text-OnLayer ms dist ptt1 h 0.0 "Limite_plan" "mr") ; 0.0 = 0°
+			   (Add-Text-OnLayer ms dist ptt1 h 0.0 "Limite_plan" "ml")
+			 )
 			);progn
 		);if
 		
@@ -289,15 +296,29 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Add text on layer
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-(defun Add-Text-OnLayer (ms txtStr pt height rot layer / txt)
-  (setq txt (vla-AddText ms txtStr (Point->Variant pt) height))
-  (vla-put-Alignment txt acAlignmentMiddleLeft)
-  (vla-put-TextAlignmentPoint txt (Point->Variant pt))
-  (vla-put-Rotation txt rot)
-  (vla-put-StyleName txt "ITALIC")
-  (vla-put-Layer txt layer)
-  (vla-put-Color txt 7)
-  txt
+(defun Add-Text-OnLayer (ms txtStr pt height rot layer justify / txt)
+
+	(setq txt (vla-AddMText ms (Point->Variant pt) 0 txtStr))
+
+	;; height
+	(vla-put-Height txt height)
+
+	;; set final alignment
+	(if (= justify "mr")
+		(vla-put-AttachmentPoint txt acAttachmentPointMiddleRight)
+		(vla-put-AttachmentPoint txt acAttachmentPointMiddleLeft)
+	)
+   
+	;; reset insertion point (important!)
+	(vla-put-InsertionPoint txt (Point->Variant pt))
+
+	;; other properties
+	(vla-put-Rotation txt rot)
+	(vla-put-Layer txt layer)
+	(vla-put-Color txt 7)
+	(vla-put-StyleName txt "ITALIC")
+
+	txt
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Add Layer, Auto-Creation + Add lintype
@@ -316,12 +337,25 @@
   )
 )
 
-(defun Ensure-Linetype (doc name file / ltypes)
-  (setq ltypes (vla-get-Linetypes doc))
-  (if (vl-catch-all-error-p
-        (vl-catch-all-apply 'vla-item (list ltypes name)))
-    (vla-load ltypes name file)
-  )
+; (defun Ensure-Linetype (doc name file / ltypes lt)
+  ; (setq ltypes (vla-get-Linetypes doc))
+
+  ; (setq lt (vl-catch-all-apply 'vla-item (list ltypes name)))
+
+  ; ;; If exists → delete it
+  ; (if (not (vl-catch-all-error-p lt))
+    ; (vla-delete lt)
+  ; )
+
+  ; ;; Reload from file
+  ; (vla-load ltypes name file)
+; )
+
+(defun Ensure-Linetype (doc name file / ltypes) 
+	(setq ltypes (vla-get-Linetypes doc)) 
+	(if (vl-catch-all-error-p (vl-catch-all-apply 'vla-item (list ltypes name))) 
+		(vla-load ltypes name file) 
+	) 
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; ObjectDBX Document object, which allows manipulation of DWG files without opening a GUI drawing window.
@@ -580,6 +614,26 @@
         newcoords)))
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Split-MText-Lines
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+; (defun Split-MText-Lines (txt / lines)
+  ; ;; Replace CRLF or LF with just LF
+  ; (setq txt (vl-string-subst "\n" "\r\n" txt))
+  
+  ; ;; Split text into a list of lines
+  ; (setq lines (vl-string->list txt "\n"))
+  
+  ; lines
+; )
+(defun Split-MText-Lines (txt / pos lines)
+  (setq lines '())
+  (while (setq pos (vl-string-search "\n" txt))
+    (setq lines (cons (substr txt 1 pos) lines))
+    (setq txt (substr txt (+ pos 2)))
+  )
+  (reverse (cons txt lines))
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start Main Command Croisillon
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun c:Croisillon (/   ctf	  	  DwgPath    csvPathFile csvfile     pcName
@@ -644,12 +698,14 @@
 								; (if (not (tblsearch "LTYPE" "HIDDEN"))
 									; (vla-load (vla-get-Linetypes dbxDoc) "HIDDEN" "acadiso.lin")
 								; )
-								(Ensure-Linetype dbxDoc "HIDDEN" "acadiso.lin")
+								;(Ensure-Linetype dbxDoc "HIDDEN" "acadiso.lin")
+								(Ensure-Linetype dbxDoc "DASHED" "acadiso.lin")
 								
 								;;Creat layer if not exist
 								(Ensure-Layer dbxDoc "Limite_plan")
+								(Ensure-Layer dbxDoc "PDF_TEXT_PLAN_SCALE")
 								
-								;1 Vlax-For Detect Scale
+								;1 Vlax-For Detect Scale,N° demande and Nom
 							    (vlax-for ent ms
 								  (if (and (= (vla-get-objectname ent) "AcDbMText")
 										   (= (vla-get-Layer ent) "PDF_TEXT_PLAN_SCALE")) ; Contents : {\C256;\c16777215;1:1 500}
@@ -665,57 +721,156 @@
 										(setq Ech (vl-string-subst "" "1:" Ech))  ; Remove "1:"
 										(setq Ech (vl-string-subst "" " " Ech))   ; Remove the space
 										
-										(write-line (strcat filename "," Ech) csvfile)
 										; Convert the cleaned string to an integer
 										(setq Ech (atoi Ech))  ; Convert to integer
 									  )
 									)
 								  )
+								  ; (if (and (= (vla-get-objectname ent) "AcDbMText")
+										   ; (= (vla-get-Layer ent) "Text_info"))
+									; (if (vl-string-search "dossier de demande :" (vla-get-TextString ent))
+									  ; (progn
+										; (setq num_demande (vla-get-TextString ent))
+										; ; Remove the "N° dossier de demande :"
+										; (setq pos (vl-string-search ": " num_demande))
+										; (setq num_demande (substr num_demande (+ pos 2)))
+										; ; in one line
+										; ;(setq num_demande (substr Ech (+ (vl-string-search ":" Ech) 2)))
+										; (setq num_demande (vl-string-subst "" " " num_demande)); Remove the space
+									  ; )
+									; )
+								  ; )
 								  (if (and (= (vla-get-objectname ent) "AcDbMText")
-										   (= (vla-get-Layer ent) "Text_info"))
-									(if (vl-string-search "dossier de demande :" (vla-get-TextString ent))
+										   (= (vla-get-Layer ent) "0")
+										   (vl-string-search "Parcelle de" (vla-get-TextString ent))
+										)
+									(progn
+										(setq txt (vla-get-TextString ent))
+										(setq txt (vl-string-subst "\n" "\\P" txt))
+										(setq txt (vl-string-subst "\n" "\\P" txt))
+										(setq lines (Split-MText-Lines txt))
+										;; Now you can assign each line to a variable
+										(setq line1 (nth 0 lines)) ;line1
+										(setq owners (nth 1 lines)) ;line2
+										(setq num_demande (nth 2 lines)) ;line3
+									)
+								  )
+								)
+								(princ)
+								
+								;2 Vlax-For 
+							    (vlax-for ent ms
+								  (if (and (= (vla-get-objectname ent) "AcDbMText")
+										   (= (vla-get-Layer ent) "Text_info")
+										   (vlax-property-available-p ent 'TextString)
+										)
+									(progn
+										(if (vl-string-search "dossier de demande :" (vla-get-TextString ent))
+										  (progn
+											(vla-put-TextString ent (strcat "N%%d dossier de demande : " num_demande))
+										  )
+										)
+										(if (vl-string-search "Nom du demandeur : " (vla-get-TextString ent))
+										  (progn
+											(vla-put-TextString ent (strcat "Nom du demandeur : " owners))
+										  )
+										)
+									)
+								  )
+								)
+								(princ)
+								
+								(write-line (strcat filename "," (if Ech (Itoa Ech) "") "," (if num_demande num_demande "")) csvfile)
+								
+								;3 Vlax-For Detect Scale
+							    (vlax-for ent ms
+								  (if (and (= (vla-get-objectname ent) "AcDbMText")
+										   (= (vla-get-Layer ent) "PDF_TEXT_PLAN_SCALE"))
+									(if (vl-string-search "1:" (vla-get-TextString ent))
 									  (progn
-										(setq num_demande (vla-get-TextString ent))
-										; Remove the "N° dossier de demande :"
-										(setq pos (vl-string-search ": " num_demande))
-										(setq num_demande (substr num_demande (+ pos 2)))
-										; in one line
-										;(setq num_demande (substr Ech (+ (vl-string-search ":" Ech) 2)))
-										(setq num_demande (vl-string-subst "" " " num_demande)); Remove the space
-										
-										(write-line (strcat filename "," num_demande) csvfile)
+										(setq ins (vlax-get ent 'InsertionPoint))
+										(setq str (vla-get-TextString ent))
+										(setq hgt (vla-get-Height ent))
+										(setq newEch (strcat "1:" (Itoa Ech)))
+										(Add-Text-OnLayer ms newEch ins hgt 0.0 "PDF_TEXT_PLAN_SCALE" "ml")
+										(vla-delete ent)
 									  )
 									)
 								  )
 								)
 								(princ)
 								 
-								(setq scaleLT (* 0.2 (/ Ech 1000.0)))
+								(setq scaleLT (/ Ech 1000.0))
+								(setq scale (* 20.0 (/ Ech 1000.0)))
 								
+								;4 Vlax-For
 								(vlax-for ent ms
 									(if (and 	(= (vla-get-objectname ent) "AcDbMText")
 												(= (vla-get-Layer ent) "0")
-												(vl-string-search "P" (vla-get-TextString ent))
 											)
 										(progn
-											(setq modifiedText (_RegExReplace "Parcelle de" "P[0-9]+" (vla-get-TextString ent)) )
-											(vla-put-TextString ent modifiedText)
+											(vla-put-Color ent 7)
+											(if (vl-string-search "P" (vla-get-TextString ent))
+												(progn
+													(setq modifiedText (_RegExReplace "Parcelle de" "(^|\r?\n)P?\\d+" (vla-get-TextString ent)) ) ;(^|\r?\n)P?\\d+ ;;\\bP[0-9]+\r?\n?
+													(vla-put-TextString ent modifiedText)
+												)
+											)
 										);end progn
 									);end if
 									
-									(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
-											 (= (vla-get-Layer ent) "RIVRAIN_SEGMENTS")
+									(if (and (= (vla-get-objectname ent) "AcDbMText")
+										   (= (vla-get-Layer ent) "Sommair_map")
+										   (vl-string-search "Village de " (vla-get-TextString ent))
 										)
+										(vla-put-TextString ent "Parcelle concern\U+00E9e") ;;"\U+00E9" → é "\U+00E8" → è "\U+00E0" → à "\U+00E7" → ç
+									)
+								  
+									(if (and 	(= (vla-get-objectname ent) "AcDbPolyline")
+												(= (vla-get-Layer ent) "MAP_DETAIL_LINE")
+											)
 										(progn
-											(vla-put-Linetype ent "HIDDEN")
-											(vla-put-LinetypeScale ent scaleLT)
+											(vla-put-Color ent 1)
+										);end progn
+									);end if
+									
+									(if (and
+											(= (vla-get-objectname ent) "AcDbPolyline")
+											(= (vla-get-layer ent) "RIVRAIN_SEGMENTS")
+										)
+									(progn
+										(vla-put-Linetype ent "DASHED") ;ByLayer or HIDDEN
+										(vla-put-LinetypeScale ent scaleLT)
+										; (if (vlax-property-available-p ent 'LinetypeGeneration)
+											; (vla-put-LinetypeGeneration ent :vlax-true)
+										; )
+										(setq coords
+											(vlax-safearray->list
+											  (vlax-variant-value (vla-get-Coordinates ent))
+											)
+										)
+
+										;; check 2 vertices
+										(if (= (length coords) 4)
+											(progn
+											  (setq p1 (list (nth 0 coords) (nth 1 coords) 0.0))
+											  (setq p2 (list (nth 2 coords) (nth 3 coords) 0.0))
+
+											  (if (FirstVertexOnContour p1 ms)
+												;; normal
+												(ModifyLengthFromP1 ent scale)
+												;; reverse
+												(ModifyLengthFromP2 ent scale)
+											  )
+											)
 										)
 									)
+								  )
 								 
 								);End Vlax for
 								(princ)
 								
-								;2 Vlax-For Detect Polyline & Delete Old Cross
+								;5 Vlax-For Detect Polyline & Delete Old Cross
 								(vlax-for ent ms
 									(cond
 										((and (= (vla-get-ObjectName ent) "AcDbPolyline")
@@ -735,45 +890,6 @@
 									(Create-Croix ms Ech pl)
 									(write-line (strcat filename ",Echelle introuvable.") csvfile)
 								)
-								
-								(setq scale (* 20.0 (/ Ech 1000.0)))
-
-								(vlax-for ent ms
-								  (if (and
-										(= (vla-get-objectname ent) "AcDbPolyline")
-										(= (vla-get-layer ent) "RIVRAIN_SEGMENTS")
-									  )
-
-									(progn
-
-									  (setq coords
-										(vlax-safearray->list
-										  (vlax-variant-value (vla-get-Coordinates ent))))
-
-									  ;; check 2 vertices
-									  (if (= (length coords) 4)
-
-										(progn
-
-										  (setq p1 (list (nth 0 coords) (nth 1 coords) 0.0))
-										  (setq p2 (list (nth 2 coords) (nth 3 coords) 0.0))
-
-										  (if (FirstVertexOnContour p1 ms)
-
-											;; normal
-											(ModifyLengthFromP1 ent scale)
-
-											;; reverse
-											(ModifyLengthFromP2 ent scale)
-										  )
-
-										)
-									  )
-
-									)
-								  )
-								)
-								(princ)
 								
 								;; Run manual purge
 								(Purge-DBX dbxDoc)
