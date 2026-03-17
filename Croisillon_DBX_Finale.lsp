@@ -598,36 +598,21 @@
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun Split-MText-Lines (txt / pos lines)
   (setq lines '())
-  (while (setq pos (vl-string-search "\n" txt))
-    (setq lines (cons (substr txt 1 pos) lines))
-    (setq txt (substr txt (+ pos 2)))
-  )
-  (reverse (cons txt lines))
+  ; (while (setq pos (vl-string-search "\n" txt))
+    ; (setq lines (cons (substr txt 1 pos) lines))
+    ; (setq txt (substr txt (+ pos 2)))
+  ; )
+  ; (reverse (cons txt lines))
+
+	(while (setq pos (vl-string-search "\\P" txt))
+		(setq lines (cons (substr txt 1 pos) lines))
+		(setq txt (substr txt (+ pos 3)))
+	)
+	(reverse (cons txt lines))
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Function to get polyline signature
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-; (defun PolySignature (ent / coords)
-  ; (setq coords
-        ; (vlax-safearray->list
-          ; (vlax-variant-value
-            ; (vla-get-Coordinates ent))))
-  ; (vl-princ-to-string coords)
-; )
-; (defun PolySignature (ent / coords rev)
-  ; (setq coords
-        ; (vlax-safearray->list
-          ; (vlax-variant-value
-            ; (vla-get-Coordinates ent))))
-
-  ; (setq rev (reverse coords))
-
-  ; (if (< (vl-princ-to-string coords) (vl-princ-to-string rev))
-    ; (vl-princ-to-string coords)
-    ; (vl-princ-to-string rev)
-  ; )
-; )
-
 (defun Coords->Points (coords / pts)
   (while coords
     (setq pts (cons (list (car coords) (cadr coords)) pts))
@@ -662,6 +647,36 @@
   )
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; Helper to split CSV fields after the quoted text
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun parseCSV (line / result token inquotes c i len)
+  (setq result '()
+        token ""
+        inquotes nil
+        i 1
+        len (strlen line)
+  )
+  (while (<= i len)
+    (setq c (substr line i 1))
+    (cond
+      ((= c "\"")
+       (setq inquotes (not inquotes))
+      )
+      ((and (= c ",") (not inquotes))
+       (setq result (append result (list token)))
+       (setq token "")
+      )
+      (T
+       (setq token (strcat token c))
+      )
+    )
+    (setq i (1+ i))
+  )
+  ;; Add the last token
+  (setq result (append result (list token)))
+  result
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start Main Command Croisillon
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun c:Croisillon (/   ctf	  	  DwgPath    csvPathFile csvfile     pcName
@@ -688,6 +703,25 @@
 	 (setq csvfile (open csvPathFile "w"))
 	 ;the Header of csv :
 	 (write-line "Filename,Probleme,Count" csvfile)
+	 
+	 ;;read csv 2
+	 (setq csvPathFile2 "C:\\Users\\P50\\Desktop\\ReplaceVillage.csv") ;; CHANGE TO MATCH YOUR CSV PATH
+	 (if (not (findfile csvPathFile2))
+		(progn
+		  (princ "\nCSV file not found.")
+		  (princ)
+		  (return) ;; clean exit
+		)
+	  )
+	  (setq csvfile2 (open csvPathFile2 "r"))
+	  (read-line csvfile2) ; Skip header
+	  (setq csvLines '())
+	  (while (setq line (read-line csvfile2))
+		(setq csvLines (cons line csvLines))
+	   )
+	   (setq csvLines (reverse csvLines)) ; Preserve order
+       (close csvfile2)
+	 
 	 
 	 ;Get All DWG files
      (setq Files (mapcar '(lambda (x) (strcat dwgpath x)) (vl-directory-files DwgPath "*.dwg" 1)))
@@ -760,13 +794,27 @@
 										)
 									(progn
 										(setq txt (vla-get-TextString ent))
-										(setq txt (vl-string-subst "\n" "\\P" txt))
-										(setq txt (vl-string-subst "\n" "\\P" txt))
 										(setq lines (Split-MText-Lines txt))
-										;; Now you can assign each line to a variable
-										(setq line1 (nth 0 lines)) ;line1
-										(setq owners (nth 1 lines)) ;line2
-										(setq num_demande (nth 2 lines)) ;line3
+										
+										(setq num_demande nil)
+										(setq ownersList '())
+
+										(setq j 0)
+										(foreach l lines
+											(cond
+												((wcmatch l "*###-###-######*")
+													(setq num_demande l)
+												)
+												;; Collect owners between "Parcelle de" and "*###-###-######*"
+												((and (not (wcmatch l "*###-###-######*"))
+													  (/= l "Parcelle de")
+													)
+													(setq ownersList (cons l ownersList))
+												)
+											)
+										)
+										(setq ownersList (reverse ownersList))
+										(setq owners (apply 'strcat (mapcar '(lambda (x) (strcat x " ")) ownersList)))
 									)
 								  )
 								)
@@ -826,7 +874,7 @@
 											(vla-put-Color ent 7)
 											(if (vl-string-search "P" (vla-get-TextString ent))
 												(progn
-													(setq modifiedText (_RegExReplace "Parcelle de" "(^|\r?\n)P?\\d+" (vla-get-TextString ent)) ) ;(^|\r?\n)P?\\d+ ;;\\bP[0-9]+\r?\n?
+													(setq modifiedText (_RegExReplace "Parcelle de" "(^|\r?\n)P\\d+[A-D]?" (vla-get-TextString ent)) ) ;(^|\r?\n)P?\\d+ ;;\\bP[0-9]+\r?\n?
 													(vla-put-TextString ent modifiedText)
 												)
 											)
@@ -837,7 +885,14 @@
 										   (= (vla-get-Layer ent) "Sommair_map")
 										   (vl-string-search "Village de " (vla-get-TextString ent))
 										)
-										(vla-put-TextString ent "Parcelle concern\U+00E9e") ;;"\U+00E9" → é "\U+00E8" → è "\U+00E0" → à "\U+00E7" → ç
+										(vla-put-TextString ent "Parcelle concern\U+00E9e") ;;"\U+00E9" → é "\U+00E8" → è "\U+00E0" → à "\U+00E7" → ç "\U+00EA" → ê
+									)
+									
+									(if (and (= (vla-get-objectname ent) "AcDbMText")
+										   (= (vla-get-Layer ent) "Sommair_map")
+										   (wcmatch (vla-get-TextString ent) "For*ts")
+										)
+										(vla-put-TextString ent "For\U+00EAts class\U+00E9es")
 									)
 								  
 									(if (and 	(= (vla-get-objectname ent) "AcDbPolyline")
@@ -924,6 +979,72 @@
 									(write-line (strcat filename ",Echelle introuvable.") csvfile)
 								)
 								
+								;; Read each line of the CSV
+								(foreach line csvLines
+									(setq csvFields (parseCSV line))
+									;; Defensive check
+									;(if (>= (length csvFields) 4)
+									  ;(progn
+										(setq csvNum_demande (nth 0 csvFields))
+										(setq departement (nth 1 csvFields))
+										(setq sous_prefecture (nth 2 csvFields))
+										(setq village (nth 3 csvFields))
+										(if (= csvNum_demande num_demande)
+										  (progn
+											(vlax-for ent ms
+												(if (and
+														(= (vla-get-objectname ent) "AcDbMText")
+														(= (vla-get-layer ent) "Sommair_map")
+													)
+													(progn
+														(if (vl-string-search "SOUS-PREFECTURE" (vla-get-TextString ent))
+															(progn
+																;SOUS-PREFECTURE
+																(vla-put-TextString ent (strcat "CHEF-LIEU DE SOUS-PREFECTURE : " sous_prefecture))
+															)
+														)
+														(if (vl-string-search "DEPARTEMENT" (vla-get-TextString ent))
+															(progn
+																;DEPARTEMENT
+																(vla-put-TextString ent (strcat "CHEF-LIEU DE DEPARTEMENT : " departement))
+															)
+														)
+													)
+												)
+												(if (and
+														(= (vla-get-objectname ent) "AcDbMText")
+														(= (vla-get-layer ent) "Text_info")
+													)
+													(progn
+														(if (vl-string-search "partement :" (vla-get-TextString ent))
+															(progn
+																;Département "\U+00E9" → é
+																(vla-put-TextString ent (strcat "D\U+00E9partement : " departement))
+															)
+														)
+														(if (vl-string-search "fecture : " (vla-get-TextString ent))
+															(progn
+																;Sous-préfecture
+																(vla-put-TextString ent (strcat "Sous-pr\U+00E9fecture : " sous_prefecture))
+															)
+														)
+														(if (vl-string-search "Village : " (vla-get-TextString ent))
+															(progn
+																;Sous-préfecture
+																(vla-put-TextString ent (strcat "Village : " village))
+															)
+														)
+													)
+												)
+											)
+											(princ)
+										  )
+										)
+									  ;)
+									  ;(write-line (strcat "\nInvalid CSV line: " line) csvfile)
+									;)
+								)
+								
 								;; Run manual purge
 								(Purge-DBX dbxDoc)
 
@@ -951,6 +1072,7 @@
      );end cond
 	 ;Colse the csv file
 	 (close csvfile)
+	 (close csvfile2)
 	 ; Open the CSV file (Log.csv)
 	 (if (null (_OpenFile csvPathFile))
 		(princ "\n--> Error Opening Report.")
