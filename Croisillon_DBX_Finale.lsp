@@ -1,5 +1,7 @@
 ;;;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-;;; Croisillon_DBX_Tonkpi : Small lisp to Creat quadrillage ... in Multiple DWG file
+;;; Croisillon_DBX_Tonkpi : Small lisp to Creat quadrillage 
+;;; + modify LineType + Modify the length of Riverain segments 
+;;; + Replace Mtext using Regex ... in Multiple DWG file
 ;;; Author: Abdessalam Aadel © 2026
 ;;; GitHub: https://github.com/abdessalam-aadel/Lisp
 ;;;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -298,12 +300,27 @@
   txt
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-;;; Add Layer, Auto-Creation
+;;; Add Layer, Auto-Creation + Add lintype
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+; (defun Ensure-Layer (doc name / layers)
+  ; (setq layers (vla-get-Layers doc))
+  ; (if (not (tblsearch "LAYER" name))
+    ; (vla-add layers name)
+  ; )
+; )
 (defun Ensure-Layer (doc name / layers)
   (setq layers (vla-get-Layers doc))
-  (if (not (tblsearch "LAYER" name))
+  (if (vl-catch-all-error-p
+        (vl-catch-all-apply 'vla-item (list layers name)))
     (vla-add layers name)
+  )
+)
+
+(defun Ensure-Linetype (doc name file / ltypes)
+  (setq ltypes (vla-get-Linetypes doc))
+  (if (vl-catch-all-error-p
+        (vl-catch-all-apply 'vla-item (list ltypes name)))
+    (vla-load ltypes name file)
   )
 )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -459,6 +476,110 @@
     (vlax-invoke (vl-bb-ref '*REX*) 'Replace string newstr)
   )
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; FirstVertexOnContour
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun FirstVertexOnContour (pt ms / hit)
+  (setq hit nil)
+
+  (vlax-for ent ms
+    (if (and
+          (= (vla-get-objectname ent) "AcDbPolyline")
+          (= (strcase (vla-get-layer ent)) "0")
+		  (= (vla-get-Color ent) 1)
+        )
+      (if (< (distance pt (vlax-curve-getClosestPointTo ent pt)) 1e-6)
+        (setq hit T)
+      )
+    )
+  )
+  hit
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; ModifyLengthFromP1
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun ModifyLengthFromP1 (ent scale / coords p1 p2 vec len newp2 newcoords)
+
+  ;; read coordinates
+  (setq coords
+        (vlax-safearray->list
+          (vlax-variant-value
+            (vla-get-Coordinates ent))))
+
+  ;; vertices
+  (setq p1 (list (nth 0 coords) (nth 1 coords) 0.0))
+  (setq p2 (list (nth 2 coords) (nth 3 coords) 0.0))
+
+  ;; direction vector
+  (setq vec (mapcar '- p2 p1))
+
+  ;; current length
+  (setq len (distance p1 p2))
+
+  ;; normalize vector
+  (setq vec (mapcar '(lambda (x) (/ x len)) vec))
+
+  ;; compute new point
+  (setq newp2
+        (mapcar '+ p1
+          (mapcar '(lambda (x) (* x scale)) vec)))
+
+  ;; build new coordinates
+  (setq newcoords
+        (list
+          (car p1) (cadr p1)
+          (car newp2) (cadr newp2)))
+
+  ;; write back coordinates
+  (vla-put-Coordinates ent
+    (vlax-make-variant
+      (vlax-safearray-fill
+        (vlax-make-safearray vlax-vbDouble '(0 . 3))
+        newcoords)))
+
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;;; ModifyLengthFromP2
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(defun ModifyLengthFromP2 (ent scale / coords p1 p2 vec len newp1 newcoords)
+
+  ;; read coordinates
+  (setq coords
+        (vlax-safearray->list
+          (vlax-variant-value
+            (vla-get-Coordinates ent))))
+
+  ;; vertices
+  (setq p1 (list (nth 0 coords) (nth 1 coords) 0.0))
+  (setq p2 (list (nth 2 coords) (nth 3 coords) 0.0))
+
+  ;; vector from P2 to P1
+  (setq vec (mapcar '- p1 p2))
+
+  ;; current length
+  (setq len (distance p1 p2))
+
+  ;; normalize vector
+  (setq vec (mapcar '(lambda (x) (/ x len)) vec))
+
+  ;; compute new P1
+  (setq newp1
+        (mapcar '+ p2
+          (mapcar '(lambda (x) (* x scale)) vec)))
+
+  ;; build new coordinates
+  (setq newcoords
+        (list
+          (car newp1) (cadr newp1)
+          (car p2) (cadr p2)))
+
+  ;; update polyline
+  (vla-put-Coordinates ent
+    (vlax-make-variant
+      (vlax-safearray-fill
+        (vlax-make-safearray vlax-vbDouble '(0 . 3))
+        newcoords)))
+)
+;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ;;; Start Main Command Croisillon
 ;;;++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 (defun c:Croisillon (/   ctf	  	  DwgPath    csvPathFile csvfile     pcName
@@ -520,9 +641,10 @@
 								(setq ms (vla-get-modelspace dbxDoc))
 								
 								;; Ensure the linetype is loaded - ACAD_ISO03W100
-								(if (not (tblsearch "LTYPE" "HIDDEN"))
-									(vla-load (vla-get-Linetypes dbxDoc) "HIDDEN" "acadiso.lin")
-								)
+								; (if (not (tblsearch "LTYPE" "HIDDEN"))
+									; (vla-load (vla-get-Linetypes dbxDoc) "HIDDEN" "acadiso.lin")
+								; )
+								(Ensure-Linetype dbxDoc "HIDDEN" "acadiso.lin")
 								
 								;;Creat layer if not exist
 								(Ensure-Layer dbxDoc "Limite_plan")
@@ -559,6 +681,7 @@
 										(setq num_demande (substr num_demande (+ pos 2)))
 										; in one line
 										;(setq num_demande (substr Ech (+ (vl-string-search ":" Ech) 2)))
+										(setq num_demande (vl-string-subst "" " " num_demande)); Remove the space
 										
 										(write-line (strcat filename "," num_demande) csvfile)
 									  )
@@ -567,42 +690,25 @@
 								)
 								(princ)
 								 
-								;;Delete par12564 par....
+								(setq scaleLT (* 0.2 (/ Ech 1000.0)))
+								
 								(vlax-for ent ms
-									(if (and 	(= (vla-get-objectname ent) "AcDbMText")
-												(= (vla-get-Layer ent) "0")
-												(vl-string-search "par" (vla-get-TextString ent))
-											)
-										(progn
-											(setq modifiedText (_RegExReplace "" "\r?\n?par[0-9]+" (vla-get-TextString ent)) )
-											(vla-put-TextString ent modifiedText)
-										);end progn
-									);end if
 									(if (and 	(= (vla-get-objectname ent) "AcDbMText")
 												(= (vla-get-Layer ent) "0")
 												(vl-string-search "P" (vla-get-TextString ent))
 											)
 										(progn
-											(setq modifiedText (_RegExReplace "" "P[0-9]+\r?\n?" (vla-get-TextString ent)) )
-											(vla-put-TextString ent modifiedText)
-										);end progn
-									);end if
-									(if (and 	(= (vla-get-objectname ent) "AcDbMText")
-												(= (vla-get-Layer ent) "0")
-												(vl-string-search "B" (vla-get-TextString ent))
-											)
-										(progn
-											(setq modifiedText (_RegExReplace "F" "B(?=[0-9]+)" (vla-get-TextString ent)) )
+											(setq modifiedText (_RegExReplace "Parcelle de" "P[0-9]+" (vla-get-TextString ent)) )
 											(vla-put-TextString ent modifiedText)
 										);end progn
 									);end if
 									
 									(if (and (= (vla-get-ObjectName ent) "AcDbPolyline")
-											 (= (vla-get-Layer ent) "DETAIL_LINE")
+											 (= (vla-get-Layer ent) "RIVRAIN_SEGMENTS")
 										)
 										(progn
 											(vla-put-Linetype ent "HIDDEN")
-											(vla-put-LinetypeScale ent scale)
+											(vla-put-LinetypeScale ent scaleLT)
 										)
 									)
 								 
@@ -630,10 +736,42 @@
 									(write-line (strcat filename ",Echelle introuvable.") csvfile)
 								)
 								
-								(setq scale (* 0.2 (/ Ech 1000.0)))
-								;; Loop through all objects
+								(setq scale (* 20.0 (/ Ech 1000.0)))
+
 								(vlax-for ent ms
-									
+								  (if (and
+										(= (vla-get-objectname ent) "AcDbPolyline")
+										(= (vla-get-layer ent) "RIVRAIN_SEGMENTS")
+									  )
+
+									(progn
+
+									  (setq coords
+										(vlax-safearray->list
+										  (vlax-variant-value (vla-get-Coordinates ent))))
+
+									  ;; check 2 vertices
+									  (if (= (length coords) 4)
+
+										(progn
+
+										  (setq p1 (list (nth 0 coords) (nth 1 coords) 0.0))
+										  (setq p2 (list (nth 2 coords) (nth 3 coords) 0.0))
+
+										  (if (FirstVertexOnContour p1 ms)
+
+											;; normal
+											(ModifyLengthFromP1 ent scale)
+
+											;; reverse
+											(ModifyLengthFromP2 ent scale)
+										  )
+
+										)
+									  )
+
+									)
+								  )
 								)
 								(princ)
 								
